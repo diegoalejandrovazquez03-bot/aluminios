@@ -10,6 +10,7 @@ import '../../state/app_state.dart';
 import '../../widgets/avatar_widget.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/whatsapp_draft_sheet.dart';
 
 class QuoteDetailScreen extends StatelessWidget {
   final AppState state;
@@ -27,15 +28,12 @@ class QuoteDetailScreen extends StatelessWidget {
     Quote quote,
     Client? client,
   ) {
-    ExternalLinks.whatsApp(
+    WhatsAppDraftSheet.show(
       context,
-      phone,
-      message:
-          'Hola ${client?.name ?? ''}, te comparto la cotización ${quote.folio} de ${state.settings.bizName}:\n\n'
-          'Total: ${AppState.formatMXN(quote.total)}\n'
-          'Piezas: ${quote.items.length}\n'
-          'Fecha: ${quote.date}\n\n'
-          '¿Deseas confirmar tu pedido?',
+      state: state,
+      quote: quote,
+      client: client,
+      phone: phone,
     );
   }
 
@@ -348,10 +346,7 @@ class QuoteDetailScreen extends StatelessWidget {
     return Scaffold(
       appBar: TopBar(
         title: quote.folio,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => onNavigate(3), // back to quotes
-        ),
+        onBack: () => onNavigate(3), // back to quotes
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

@@ -216,13 +216,7 @@ class ProfileScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: TopBar(
-        title: 'Mi Perfil',
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => onNavigate(0),
-        ),
-      ),
+      appBar: TopBar(title: 'Mi Perfil', onBack: () => onNavigate(0)),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

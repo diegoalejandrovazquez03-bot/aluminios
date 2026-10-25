@@ -175,10 +175,10 @@ class AppState extends ChangeNotifier {
     ];
 
     _clients = [
-      Client(id: 1, name: 'Carlos Méndez', phone: '999 123 4567'),
-      Client(id: 2, name: 'María López', phone: '999 234 5678'),
-      Client(id: 3, name: 'Constructora Sur', phone: '999 345 6789'),
-      Client(id: 4, name: 'Luis Pérez', phone: '999 456 7890'),
+      Client(id: 1, name: 'Carlos Méndez', phone: '999 340 9396'),
+      Client(id: 2, name: 'María López', phone: '999 340 9396'),
+      Client(id: 3, name: 'Constructora Sur', phone: '999 340 9396'),
+      Client(id: 4, name: 'Luis Pérez', phone: '999 340 9396'),
     ];
 
     _quotes = [

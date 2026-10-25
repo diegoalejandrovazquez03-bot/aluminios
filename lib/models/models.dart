@@ -383,7 +383,7 @@ class Settings {
 
   Settings({
     this.bizName = 'Aluminios AV',
-    this.bizPhone = '999 100 2000',
+    this.bizPhone = '999 340 9396',
     this.bizAddress = 'Calle 60 #450, Mérida, Yuc.',
     this.dark = false,
     this.ai = true,
@@ -428,7 +428,7 @@ class Settings {
   factory Settings.fromMap(Map<String, dynamic> map) {
     return Settings(
       bizName: map['bizName'] ?? 'Aluminios AV',
-      bizPhone: map['bizPhone'] ?? '999 100 2000',
+      bizPhone: map['bizPhone'] ?? '999 340 9396',
       bizAddress: map['bizAddress'] ?? 'Calle 60 #450, Mérida, Yuc.',
       dark: map['dark'] ?? false,
       ai: map['ai'] ?? true,

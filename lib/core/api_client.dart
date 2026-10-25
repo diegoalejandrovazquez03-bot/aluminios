@@ -26,6 +26,7 @@ class ApiClient {
     int? id,
     String? action,
     Map<String, dynamic>? body,
+    Duration timeout = const Duration(seconds: 10),
   }) async {
     final uri = Uri.parse(
       '$baseUrl/api/$resource${id == null ? '' : '/$id'}${action == null ? '' : '/$action'}',
@@ -33,12 +34,7 @@ class ApiClient {
     final client = http.Client();
     late final http.Response response;
     try {
-      response = await _send(
-        client,
-        uri,
-        method,
-        body,
-      ).timeout(const Duration(seconds: 10));
+      response = await _send(client, uri, method, body).timeout(timeout);
     } finally {
       client.close();
     }

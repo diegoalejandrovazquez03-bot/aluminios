@@ -11,6 +11,9 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   final List<Widget>? actions;
   final VoidCallback? onAvatarTap;
 
+  /// A dónde regresa la flecha; por defecto, a la pantalla anterior.
+  final VoidCallback? onBack;
+
   const TopBar({
     super.key,
     required this.title,
@@ -18,6 +21,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
     this.leading,
     this.actions,
     this.onAvatarTap,
+    this.onBack,
   });
 
   @override
@@ -28,24 +32,14 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final fg = isDark ? AppColors.textOnDark : AppColors.carbon;
 
+    // Menú lateral a la izquierda; la flecha de regresar va a la derecha.
     return AppBar(
-      leadingWidth: leading == null ? 96 : null,
       leading:
           leading ??
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                tooltip: 'Menú',
-                icon: Icon(Icons.menu, color: fg),
-                onPressed: () => AppNavigation.openMenu?.call(),
-              ),
-              IconButton(
-                tooltip: 'Volver',
-                icon: Icon(Icons.arrow_back, color: fg),
-                onPressed: AppNavigation.onBack,
-              ),
-            ],
+          IconButton(
+            tooltip: 'Menú',
+            icon: Icon(Icons.menu, color: fg),
+            onPressed: () => AppNavigation.openMenu?.call(),
           ),
       titleSpacing: 0,
       title: Row(
@@ -92,12 +86,18 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
         ...?actions,
         if (onAvatarTap != null)
           Padding(
-            padding: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             child: GestureDetector(
               onTap: onAvatarTap,
               child: const AvatarWidget(name: 'Usuario', size: 34),
             ),
           ),
+        IconButton(
+          tooltip: 'Volver',
+          icon: Icon(Icons.arrow_back, color: fg),
+          onPressed: onBack ?? AppNavigation.onBack,
+        ),
+        const SizedBox(width: 4),
       ],
     );
   }

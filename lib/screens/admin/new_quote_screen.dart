@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 
 import '../../core/constants.dart';
+import '../../core/piece_advisor.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/ai_chat_sheet.dart';
@@ -254,10 +255,7 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
     return Scaffold(
       appBar: TopBar(
         title: 'Nueva Cotización',
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => widget.onNavigate(3),
-        ),
+        onBack: () => widget.onNavigate(3),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -284,7 +282,7 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
                       ),
                       SizedBox(width: 6),
                       Text(
-                        'Sugerencia de material',
+                        'Mayor margen disponible',
                         style: TextStyle(
                           color: AppColors.navy,
                           fontWeight: FontWeight.w600,
@@ -785,8 +783,55 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
               ),
             ],
           ),
+          if (widget.state.settings.ai)
+            ..._pieceAdvice(prod?.name ?? '', item.width, item.height),
         ],
       ),
     );
+  }
+
+  List<Widget> _pieceAdvice(String productName, double width, double height) {
+    final advice = PieceAdvisor.advise(
+      productName: productName,
+      widthCm: width,
+      heightCm: height,
+    );
+    if (advice.isEmpty) return const [];
+    return [
+      const SizedBox(height: 10),
+      Divider(height: 1, color: AppColors.divider),
+      const SizedBox(height: 8),
+      for (final a in advice)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                a.level == AdviceLevel.warning
+                    ? Icons.error_outline
+                    : Icons.straighten,
+                size: 16,
+                color: a.level == AdviceLevel.warning
+                    ? AppColors.pending
+                    : AppColors.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  a.text,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: a.level == AdviceLevel.warning
+                        ? AppColors.pendingText
+                        : AppColors.textDark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+    ];
   }
 }
