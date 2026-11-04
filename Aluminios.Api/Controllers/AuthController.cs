@@ -78,9 +78,17 @@ public sealed partial class AuthController(Store store) : ControllerBase
         data["email"] = JsonSerializer.SerializeToElement(email);
         data["name"] = JsonSerializer.SerializeToElement(name);
         data["phone"] = JsonSerializer.SerializeToElement(request.Phone);
+        var address = (request.Address ?? "").Trim();
+        data["address"] = JsonSerializer.SerializeToElement(address);
         var saved = store.Save(Sessions.AccountsTable, JsonSerializer.SerializeToElement(data));
         if (session.ClientId > 0 && store.Find("clientes", session.ClientId).ValueKind != JsonValueKind.Undefined)
-            store.Save("clientes", JsonSerializer.SerializeToElement(new { id = session.ClientId, name, phone = request.Phone }));
+            {
+            var client = store.Find("clientes", session.ClientId).Deserialize<Dictionary<string, JsonElement>>()!;
+            client["name"] = JsonSerializer.SerializeToElement(name);
+            client["phone"] = JsonSerializer.SerializeToElement(request.Phone);
+            client["address"] = JsonSerializer.SerializeToElement(address);
+            store.Save("clientes", JsonSerializer.SerializeToElement(client));
+        }
         return Ok(Profile(saved));
     }
 
@@ -97,6 +105,46 @@ public sealed partial class AuthController(Store store) : ControllerBase
         var data = account.Deserialize<Dictionary<string, JsonElement>>()!;
         data["passwordHash"] = JsonSerializer.SerializeToElement(PasswordHasher.Hash(request.New));
         store.Save(Sessions.AccountsTable, JsonSerializer.SerializeToElement(data));
+        return NoContent();
+    }
+
+    // Foto de perfil (data:image/...;base64). Se limita el tamaño para no
+    // saturar el almacenamiento; la app la manda ya reducida.
+    [HttpPut("avatar")]
+    public IActionResult UpdateAvatar([FromBody] AvatarRequest request)
+    {
+        var account = store.Find(Sessions.AccountsTable, HttpContext.Session().AccountId);
+        if (account.ValueKind == JsonValueKind.Undefined) return Unauthorized();
+        var url = request.AvatarUrl ?? "";
+        if (url.Length > 0 && !url.StartsWith("data:image/", StringComparison.Ordinal))
+            return BadRequest(new { error = "La foto no tiene un formato válido." });
+        if (url.Length > 1_500_000) return BadRequest(new { error = "La foto es demasiado grande." });
+        var data = account.Deserialize<Dictionary<string, JsonElement>>()!;
+        data["avatarUrl"] = JsonSerializer.SerializeToElement(url);
+        return Ok(Profile(store.Save(Sessions.AccountsTable, JsonSerializer.SerializeToElement(data))));
+    }
+
+    // Eliminar la cuenta (requisito de Google Play). Pide la contraseña.
+    // Se borran la cuenta, sus sesiones, la ficha del cliente y sus visitas.
+    // Las cotizaciones y pagos se conservan como registro comercial del taller.
+    [HttpDelete("me")]
+    public IActionResult DeleteMe([FromBody] DeleteAccountRequest request)
+    {
+        var session = HttpContext.Session();
+        if (session.IsAdmin) return BadRequest(new { error = "La cuenta del administrador no se puede eliminar desde la app." });
+        var account = store.Find(Sessions.AccountsTable, session.AccountId);
+        if (account.ValueKind == JsonValueKind.Undefined) return Unauthorized();
+        if (!PasswordHasher.Verify(request.Password, account.GetProperty("passwordHash").GetString() ?? ""))
+            return BadRequest(new { error = "La contraseña no es correcta" });
+
+        foreach (var s in store.Get(Sessions.SessionsTable)
+                     .Where(s => s.TryGetProperty("accountId", out var a) && a.GetInt64() == session.AccountId).ToArray())
+            store.Delete(Sessions.SessionsTable, Store.IdOf(s));
+        foreach (var v in store.Get("visitas")
+                     .Where(v => v.TryGetProperty("clientId", out var c) && c.TryGetInt64(out var id) && id == session.ClientId).ToArray())
+            store.Delete("visitas", Store.IdOf(v));
+        if (session.ClientId > 0) store.Delete("clientes", session.ClientId);
+        store.Delete(Sessions.AccountsTable, session.AccountId);
         return NoContent();
     }
 
@@ -121,6 +169,8 @@ public sealed partial class AuthController(Store store) : ControllerBase
             email = s.Email,
             name = account.TryGetProperty("name", out var n) ? n.GetString() : "",
             phone = account.TryGetProperty("phone", out var p) ? p.GetString() : "",
+            address = account.TryGetProperty("address", out var a) ? a.GetString() : "",
+            avatarUrl = account.TryGetProperty("avatarUrl", out var av) ? av.GetString() : "",
         };
     }
 
@@ -129,5 +179,7 @@ public sealed partial class AuthController(Store store) : ControllerBase
 
 public sealed record RegisterRequest(string Name, string Phone, string Email, string Password);
 public sealed record LoginRequest(string Email, string Password);
-public sealed record UpdateProfileRequest(string Name, string Phone, string Email);
+public sealed record UpdateProfileRequest(string Name, string Phone, string Email, string? Address = null);
+public sealed record AvatarRequest(string AvatarUrl);
+public sealed record DeleteAccountRequest(string Password);
 public sealed record ChangePasswordRequest(string Current, string New);
