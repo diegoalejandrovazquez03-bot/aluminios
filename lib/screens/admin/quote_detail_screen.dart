@@ -1,13 +1,20 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme.dart';
 
 import '../../core/external_links.dart';
 import '../../core/quote_pdf_service.dart';
 import '../../core/constants.dart';
+import '../../core/photo_picker.dart';
+import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
+import '../../widgets/app_image.dart';
 import '../../widgets/avatar_widget.dart';
+import '../../widgets/image_viewer.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/top_bar.dart';
 import '../../widgets/whatsapp_draft_sheet.dart';
@@ -79,7 +86,9 @@ class QuoteDetailScreen extends StatelessWidget {
                       state.updateQuote(quote.copyWith(status: s));
                     }
                     Navigator.pop(ctx);
-                    if (s == QuoteStatus.cancelada) onNavigate(3);
+                    if (s == QuoteStatus.cancelada) {
+                      onNavigate(AdminScreen.cotizaciones);
+                    }
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Estado actualizado a ${s.label}'),
@@ -344,10 +353,7 @@ class QuoteDetailScreen extends StatelessWidget {
     final saldo = (quote.total - paid).clamp(0.0, double.infinity);
 
     return Scaffold(
-      appBar: TopBar(
-        title: quote.folio,
-        onBack: () => onNavigate(3), // back to quotes
-      ),
+      appBar: TopBar(title: quote.folio),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -662,6 +668,10 @@ class QuoteDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
+          // Fotos del avance: el cliente las ve en el detalle de su pedido.
+          _progressPhotos(context, quote),
+          const SizedBox(height: 20),
+
           // Export and Share Button
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
@@ -677,6 +687,141 @@ class QuoteDetailScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// Fotos del avance o de la instalación. Se toman con la cámara o se
+  /// eligen de la galería; mantener presionada una foto la quita.
+  Widget _progressPhotos(BuildContext context, Quote quote) {
+    Future<void> add() async {
+      final source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (PhotoPicker.cameraAvailable)
+                ListTile(
+                  leading: const Icon(Icons.photo_camera_outlined),
+                  title: const Text('Tomar fotografía'),
+                  onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Elegir de la galería'),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Cancelar'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (source == null || !context.mounted) return;
+      final bytes = await PhotoPicker.pick(
+        context,
+        source,
+        maxSize: 1200,
+        quality: 70,
+      );
+      if (bytes == null) return;
+      state.setQuotePhotos(quote.id, [
+        ...quote.photos,
+        'data:image/jpeg;base64,${base64Encode(bytes)}',
+      ]);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Foto agregada. El cliente la verá en su pedido.'),
+          ),
+        );
+      }
+    }
+
+    Future<void> remove(int index) async {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('¿Quitar esta foto?'),
+          content: const Text('El cliente dejará de verla.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Quitar'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      state.setQuotePhotos(quote.id, [...quote.photos]..removeAt(index));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'FOTOS DEL AVANCE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textMuted,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+              label: const Text('Agregar'),
+              onPressed: add,
+            ),
+          ],
+        ),
+        if (quote.photos.isEmpty)
+          Text(
+            'Sin fotos. Agrega fotos de la fabricación o la instalación para que el cliente vea el avance.',
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          )
+        else ...[
+          GridView.count(
+            crossAxisCount: 3,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              for (int i = 0; i < quote.photos.length; i++)
+                InkWell(
+                  borderRadius: BorderRadius.circular(kRadius),
+                  onTap: () => showImageViewer(
+                    context,
+                    images: quote.photos,
+                    title: 'Avance de ${quote.folio}',
+                  ),
+                  onLongPress: () => remove(i),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(kRadius),
+                    child: AppImage(quote.photos[i]),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Mantén presionada una foto para quitarla.',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+          ),
+        ],
+      ],
     );
   }
 }

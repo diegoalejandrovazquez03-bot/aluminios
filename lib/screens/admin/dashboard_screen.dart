@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants.dart';
+import '../../core/app_routes.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/server_refresh.dart';
 import '../../widgets/top_bar.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -102,136 +104,154 @@ class DashboardScreen extends StatelessWidget {
       appBar: TopBar(
         title: 'ALUMINIOS',
         showLogo: true,
-        onAvatarTap: () => onNavigate(8), // Perfil
+        onAvatarTap: () => onNavigate(AdminScreen.perfil), // Perfil
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-        children: [
-          Text(dateLabel, style: AppText.label()),
-          const SizedBox(height: 2),
-          Text(
-            'Resumen',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
-              color: isDark ? AppColors.textOnDark : AppColors.carbon,
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Cifra principal en carbón
-          InkWell(
-            onTap: () => onNavigate(5), // Pagos
-            borderRadius: BorderRadius.circular(kRadius),
-            child: Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.surfaceDark : AppColors.carbon,
-                borderRadius: BorderRadius.circular(kRadius),
-                border: isDark ? Border.all(color: AppColors.borderDark) : null,
+      body: RefreshIndicator(
+        // Deslizar hacia abajo trae del servidor solicitudes y cambios nuevos.
+        onRefresh: () => refreshFromServer(context, state),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+          children: [
+            Text(dateLabel, style: AppText.label()),
+            const SizedBox(height: 2),
+            Text(
+              'Resumen',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.textOnDark : AppColors.carbon,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Saldo por cobrar',
-                    style: TextStyle(fontSize: 13, color: AppColors.aluminum),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    AppState.formatMXN(totalBalance),
-                    style: AppText.mono(
-                      fontSize: 30,
-                      color: AppColors.textOnDark,
+            ),
+            const SizedBox(height: 18),
+
+            // Cifra principal en carbón
+            InkWell(
+              onTap: () => onNavigate(AdminScreen.pagos), // Pagos
+              borderRadius: BorderRadius.circular(kRadius),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.surfaceDark : AppColors.carbon,
+                  borderRadius: BorderRadius.circular(kRadius),
+                  border: isDark
+                      ? Border.all(color: AppColors.borderDark)
+                      : null,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Saldo por cobrar',
+                      style: TextStyle(fontSize: 13, color: AppColors.aluminum),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    quotesWithBalance == 1
-                        ? 'En 1 cotización aprobada'
-                        : 'En $quotesWithBalance cotizaciones aprobadas',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.aluminum,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.only(top: 12),
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: AppColors.borderDark),
+                    const SizedBox(height: 4),
+                    Text(
+                      AppState.formatMXN(totalBalance),
+                      style: AppText.mono(
+                        fontSize: 30,
+                        color: AppColors.textOnDark,
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        _monthFigure('Cotizado', quotedMonth, first: true),
-                        _monthFigure('Aprobado', approvedMonth),
-                        _monthFigure('Cobrado', collectedMonth),
-                      ],
+                    const SizedBox(height: 2),
+                    Text(
+                      quotesWithBalance == 1
+                          ? 'En 1 cotización aprobada'
+                          : 'En $quotesWithBalance cotizaciones aprobadas',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.aluminum,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.only(top: 12),
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: AppColors.borderDark),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          _monthFigure('Cotizado', quotedMonth, first: true),
+                          _monthFigure('Aprobado', approvedMonth),
+                          _monthFigure('Cobrado', collectedMonth),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          _sectionHeader('Hoy', 'Agenda', () => onNavigate(6), isDark),
-          _listBox(
-            isDark: isDark,
-            children: todayVisits.isEmpty
-                ? [_emptyRow('Sin visitas agendadas para hoy')]
-                : [
-                    for (final v in todayVisits)
-                      _visitRow(v, isDark, () => onNavigate(6)),
-                  ],
-          ),
-          const SizedBox(height: 24),
+            _sectionHeader(
+              'Hoy',
+              'Agenda',
+              () => onNavigate(AdminScreen.agenda),
+              isDark,
+            ),
+            _listBox(
+              isDark: isDark,
+              children: todayVisits.isEmpty
+                  ? [_emptyRow('Sin visitas agendadas para hoy')]
+                  : [
+                      for (final v in todayVisits)
+                        _visitRow(
+                          v,
+                          isDark,
+                          () => onNavigate(AdminScreen.agenda),
+                        ),
+                    ],
+            ),
+            const SizedBox(height: 24),
 
-          _sectionHeader('Por atender', 'Ver todas', () {
-            state.setQuoteFilter('Pendiente');
-            onNavigate(3);
-          }, isDark),
-          _listBox(
-            isDark: isDark,
-            children: pendingQuotes.isEmpty
-                ? [_emptyRow('No hay cotizaciones pendientes')]
-                : [
-                    for (final q in pendingQuotes.take(4))
-                      _quoteRow(q, isDark, () {
-                        state.setSelectedQuoteId(q.id);
-                        onNavigate(9); // Detalle de la cotización
-                      }),
-                  ],
-          ),
-          const SizedBox(height: 24),
+            _sectionHeader('Por atender', 'Ver todas', () {
+              state.setQuoteFilter('Pendiente');
+              onNavigate(AdminScreen.cotizaciones);
+            }, isDark),
+            _listBox(
+              isDark: isDark,
+              children: pendingQuotes.isEmpty
+                  ? [_emptyRow('No hay cotizaciones pendientes')]
+                  : [
+                      for (final q in pendingQuotes.take(4))
+                        _quoteRow(q, isDark, () {
+                          state.setSelectedQuoteId(q.id);
+                          onNavigate(
+                            AdminScreen.detalleCotizacion,
+                          ); // Detalle de la cotización
+                        }),
+                    ],
+            ),
+            const SizedBox(height: 24),
 
-          _sectionHeader('Módulos', null, null, isDark),
-          _listBox(
-            isDark: isDark,
-            children: [
-              _moduleRow(
-                Icons.payments_outlined,
-                'Anticipos y pagos',
-                () => onNavigate(5),
-                isDark,
-              ),
-              _moduleRow(
-                Icons.calendar_today_outlined,
-                'Agenda de visitas',
-                () => onNavigate(6),
-                isDark,
-              ),
-              _moduleRow(
-                Icons.photo_library_outlined,
-                'Catálogo de trabajos',
-                () => onNavigate(7),
-                isDark,
-              ),
-            ],
-          ),
-        ],
+            _sectionHeader('Módulos', null, null, isDark),
+            _listBox(
+              isDark: isDark,
+              children: [
+                _moduleRow(
+                  Icons.payments_outlined,
+                  'Anticipos y pagos',
+                  () => onNavigate(AdminScreen.pagos),
+                  isDark,
+                ),
+                _moduleRow(
+                  Icons.calendar_today_outlined,
+                  'Agenda de visitas',
+                  () => onNavigate(AdminScreen.agenda),
+                  isDark,
+                ),
+                _moduleRow(
+                  Icons.photo_library_outlined,
+                  'Catálogo de trabajos',
+                  () => onNavigate(AdminScreen.catalogo),
+                  isDark,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -333,9 +353,11 @@ class DashboardScreen extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
-          Text(
-            text,
-            style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+            ),
           ),
         ],
       ),

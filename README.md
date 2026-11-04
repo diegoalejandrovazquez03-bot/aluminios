@@ -45,13 +45,26 @@ Si el backend no está disponible, la app sigue funcionando con los datos guarda
 
 ---
 
-## 🔑 Credenciales de demostración
+## 📦 Versión de publicación (Android)
 
-* **Administrador / Taller**:
-  * **Correo:** `admin@aluminieros.com`
-  * **Contraseña:** `123456`
-* **Cliente:**
-  * Puedes usar la pestaña **"Registrarme"** en la pantalla de bienvenida para crear una cuenta con tu nombre, teléfono y contraseña.
+```bash
+flutter build appbundle --release      # .aab para Google Play
+flutter build apk --release --split-per-abi   # APKs ligeros para instalar a mano
+```
+
+- **Firma:** usa `android/aluminios-release.jks` con las contraseñas de `android/key.properties`. Ninguno de los dos se sube a git. **Respáldalos fuera de la PC**: si se pierden, no se podrá publicar ninguna actualización de la app en Google Play. Si faltan (por ejemplo, en otra computadora), release se firma con la llave de prueba.
+- **http solo en pruebas:** las versiones debug/profile permiten `http://` para hablar con el backend en la PC; la versión de publicación exige un backend con `https://`.
+- **Ícono:** se genera desde `assets/icon/` con `dart run flutter_launcher_icons`.
+
+---
+
+## 🔑 Cuentas y sesión
+
+Las cuentas viven en el **backend** (contraseñas cifradas). **Si no hay conexión con el servidor**, la app usa cuentas guardadas en el teléfono: crear cuenta e iniciar sesión funcionan igual, y la contraseña se guarda solo cifrada (PBKDF2). Esas cuentas no se sincronizan con el servidor. El administrador puede entrar sin servidor con la contraseña de desarrollo (`123456`); **quitar este modo antes de publicar** (`_offlineAdminHash` en `lib/state/app_state.dart`).
+
+* **Administrador / Taller:** `admin@aluminieros.com`. La contraseña se configura en el backend (ver su README); en desarrollo es la de `appsettings.Development.json`.
+* **Cliente:** pestaña **"Crear cuenta"** en la pantalla de bienvenida (nombre, teléfono de 10 dígitos, correo y contraseña de mínimo 6 caracteres). Cada cliente solo ve sus propios pedidos, pagos y visitas.
+* Deslizar hacia abajo en Inicio, Cotizaciones, Agenda y Mis pedidos trae los cambios del servidor (estados, abonos, solicitudes de visita).
 
 ---
 

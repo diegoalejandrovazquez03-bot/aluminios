@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_routes.dart';
 import '../core/constants.dart';
 import '../state/app_state.dart';
 import 'avatar_widget.dart';
@@ -22,34 +23,74 @@ class AppDrawer extends StatelessWidget {
     final isAdmin = state.isAdmin;
 
     final adminItems = [
-      {'title': 'Inicio', 'icon': Icons.home_rounded, 'idx': 0},
-      {'title': 'Productos', 'icon': Icons.inventory_2_rounded, 'idx': 1},
-      {'title': 'Nueva cotización', 'icon': Icons.note_add_rounded, 'idx': 2},
-      {'title': 'Cotizaciones', 'icon': Icons.receipt_long_rounded, 'idx': 3},
-      {'title': 'Clientes', 'icon': Icons.people_alt_rounded, 'idx': 4},
+      {
+        'title': 'Inicio',
+        'icon': Icons.home_rounded,
+        'idx': AdminScreen.inicio,
+      },
+      {
+        'title': 'Productos',
+        'icon': Icons.inventory_2_rounded,
+        'idx': AdminScreen.productos,
+      },
+      {
+        'title': 'Nueva cotización',
+        'icon': Icons.note_add_rounded,
+        'idx': AdminScreen.nuevaCotizacion,
+      },
+      {
+        'title': 'Cotizaciones',
+        'icon': Icons.receipt_long_rounded,
+        'idx': AdminScreen.cotizaciones,
+      },
+      {
+        'title': 'Clientes',
+        'icon': Icons.people_alt_rounded,
+        'idx': AdminScreen.clientes,
+      },
       {
         'title': 'Anticipos y pagos',
         'icon': Icons.attach_money_rounded,
-        'idx': 5,
+        'idx': AdminScreen.pagos,
       },
       {
         'title': 'Agenda de visitas',
         'icon': Icons.calendar_month_rounded,
-        'idx': 6,
+        'idx': AdminScreen.agenda,
       },
       {
         'title': 'Catálogo visual',
         'icon': Icons.photo_library_rounded,
-        'idx': 7,
+        'idx': AdminScreen.catalogo,
       },
-      {'title': 'Mi perfil', 'icon': Icons.person_rounded, 'idx': 8},
+      {
+        'title': 'Mi perfil',
+        'icon': Icons.person_rounded,
+        'idx': AdminScreen.perfil,
+      },
     ];
 
     final clientItems = [
-      {'title': 'Inicio', 'icon': Icons.home_rounded, 'idx': 0},
-      {'title': 'Catálogo', 'icon': Icons.inventory_2_rounded, 'idx': 1},
-      {'title': 'Mis pedidos', 'icon': Icons.receipt_long_rounded, 'idx': 2},
-      {'title': 'Mi perfil', 'icon': Icons.person_rounded, 'idx': 3},
+      {
+        'title': 'Inicio',
+        'icon': Icons.home_rounded,
+        'idx': ClientScreen.inicio,
+      },
+      {
+        'title': 'Catálogo',
+        'icon': Icons.inventory_2_rounded,
+        'idx': ClientScreen.catalogo,
+      },
+      {
+        'title': 'Mis pedidos',
+        'icon': Icons.receipt_long_rounded,
+        'idx': ClientScreen.pedidos,
+      },
+      {
+        'title': 'Mi perfil',
+        'icon': Icons.person_rounded,
+        'idx': ClientScreen.perfil,
+      },
     ];
 
     final items = isAdmin ? adminItems : clientItems;
@@ -87,6 +128,7 @@ class AppDrawer extends StatelessWidget {
                     AvatarWidget(
                       name: state.currentClient?.name ?? 'Cliente',
                       size: 44,
+                      imageUrl: state.currentAccount?.avatarUrl,
                     ),
                   const SizedBox(width: 12),
                   Expanded(

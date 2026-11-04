@@ -1,4 +1,5 @@
 class AppNavigation {
+  /// Hay una pantalla anterior a la cual regresar (la flecha se oculta si no).
   static bool canGoBack = false;
   static void Function()? onBack;
 

@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
 import '../core/api_client.dart';
+import '../core/input_rules.dart';
+import '../core/password_hash.dart';
 
 class AppState extends ChangeNotifier {
   static const String _keyAccounts = 'alu_accounts';
@@ -18,6 +20,7 @@ class AppState extends ChangeNotifier {
   static const String _keyPayments = 'alu_payments';
   static const String _keyClients = 'alu_clients';
   static const String _keyVisits = 'alu_visits';
+  static const String _keyNotices = 'alu_notices';
 
   AppSession? _session;
   Settings _settings = Settings();
@@ -27,6 +30,7 @@ class AppState extends ChangeNotifier {
   List<Quote> _quotes = [];
   List<Payment> _payments = [];
   List<Visit> _visits = [];
+  List<AppNotice> _notices = [];
   List<Work> _works = [];
   List<Map<String, dynamic>> _trash = [];
   List<Map<String, dynamic>> get trash => _trash;
@@ -46,6 +50,19 @@ class AppState extends ChangeNotifier {
   List<Quote> get quotes => _quotes;
   List<Payment> get payments => _payments;
   List<Visit> get visits => _visits;
+
+  /// Avisos del cliente, del más reciente al más antiguo.
+  List<AppNotice> get notices =>
+      List.of(_notices)..sort((a, b) => b.date.compareTo(a.date));
+  int get unreadNotices => _notices.where((n) => !n.read).length;
+
+  void markNoticesRead() {
+    if (unreadNotices == 0) return;
+    _notices = _notices.map((n) => n.markRead()).toList();
+    _saveToStorage();
+    notifyListeners();
+  }
+
   List<Work> get works => _works;
   int get selectedQuoteId => _selectedQuoteId;
   String get quoteFilter => _quoteFilter;
@@ -59,12 +76,237 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  /// Cliente de la sesión, o null. Nunca se sustituye por otro cliente: eso
+  /// mostraría pedidos y saldos de otra persona.
   Client? get currentClient {
-    if (_clients.isEmpty) return null;
-    return _clients.firstWhere(
-      (c) => c.id == _session?.clientId,
-      orElse: () => _clients.first,
+    final id = _session?.clientId;
+    if (id == null) return null;
+    return _clients.where((c) => c.id == id).firstOrNull;
+  }
+
+  /// Cuenta del cliente con sesión iniciada (null para el administrador).
+  Account? get currentAccount {
+    if (_session == null || isAdmin) return null;
+    return _accounts.where((a) => a.clientId == _session!.clientId).firstOrNull;
+  }
+
+  void _replaceAccount(Account updated) {
+    final idx = _accounts.indexWhere((a) => a.clientId == updated.clientId);
+    if (idx != -1) _accounts[idx] = updated;
+  }
+
+  /// Mensaje para el usuario a partir de un error de red o del servidor.
+  static String _errorText(Object error) {
+    if (error is ApiException) return error.message;
+    return 'No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.';
+  }
+
+  // ---- Modo sin servidor ----
+  // Si el servidor no responde (sin conexión), las cuentas se guardan y se
+  // verifican en el teléfono con la contraseña cifrada (nunca en texto).
+
+  static const _offlineAdminEmail = 'admin@aluminieros.com';
+
+  /// Contraseña de desarrollo del administrador para entrar sin servidor,
+  /// guardada solo cifrada. QUITAR antes de publicar la app.
+  static const _offlineAdminHash =
+      r'pbkdf2-sha256$20000$MfnlIWQAVP7ZQm8iInXUXA==$NRi7891Wn+2T2cpDJMsOs01r+pZxogtrwvM5PDmVWgk=';
+
+  /// Sesión iniciada sin servidor (no tiene token).
+  bool get _isOfflineSession => _session != null && _session!.token.isEmpty;
+
+  /// Error de conexión (no hubo respuesta), a diferencia de un error que
+  /// devolvió el servidor, como "contraseña incorrecta".
+  static bool _isConnectionError(Object error) => error is! ApiException;
+
+  Future<String?> _startOfflineSession(
+    String email,
+    int clientId,
+    String role,
+  ) async {
+    _session = AppSession(email: email, clientId: clientId, role: role);
+    ApiClient.token = null;
+    sessionMessage = null;
+    await _saveToStorage();
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> _offlineLogin(String email, String password) async {
+    if (email == _offlineAdminEmail) {
+      if (!PasswordHash.verify(password, _offlineAdminHash)) {
+        return 'Correo o contraseña incorrectos';
+      }
+      return _startOfflineSession(email, 0, 'admin');
+    }
+    final account = _accounts
+        .where((a) => a.email == email && a.passwordHash.isNotEmpty)
+        .firstOrNull;
+    if (account == null ||
+        !PasswordHash.verify(password, account.passwordHash)) {
+      return 'Correo o contraseña incorrectos';
+    }
+    return _startOfflineSession(email, account.clientId, 'client');
+  }
+
+  Future<String?> _offlineRegister(
+    String name,
+    String phone,
+    String email,
+    String password,
+  ) async {
+    if (email == _offlineAdminEmail || _accounts.any((a) => a.email == email)) {
+      return 'Este correo ya está registrado';
+    }
+    final clientId = DateTime.now().millisecondsSinceEpoch;
+    _clients.insert(0, Client(id: clientId, name: name, phone: phone));
+    _accounts.add(
+      Account(
+        clientId: clientId,
+        name: name,
+        phone: phone,
+        email: email,
+        passwordHash: PasswordHash.hash(password),
+      ),
     );
+    return _startOfflineSession(email, clientId, 'client');
+  }
+
+  /// Aplica el perfil que devuelve el servidor (login, registro o edición):
+  /// sesión y, para clientes, su ficha y sus datos de cuenta en el teléfono.
+  void _applyProfile(Map<String, dynamic> profile, {String? token}) {
+    final role = profile['role'] as String? ?? 'client';
+    final clientId = (profile['clientId'] as num?)?.toInt() ?? 0;
+    final email = profile['email'] as String? ?? '';
+    final newToken = token ?? _session?.token ?? '';
+    _session = AppSession(
+      email: email,
+      clientId: clientId,
+      role: role,
+      token: newToken,
+    );
+    ApiClient.token = newToken;
+    sessionMessage = null;
+    if (role != 'client') return;
+
+    final name = profile['name'] as String? ?? '';
+    final phone = profile['phone'] as String? ?? '';
+    _upsert(
+      _clients,
+      Client(id: clientId, name: name, phone: phone),
+      (c) => c.id,
+    );
+    final existing = _accounts.where((a) => a.clientId == clientId).firstOrNull;
+    final account = Account(
+      clientId: clientId,
+      name: name,
+      phone: phone,
+      email: email,
+      avatarUrl: existing?.avatarUrl ?? '',
+    );
+    if (existing == null) {
+      _accounts.add(account);
+    } else {
+      _replaceAccount(account);
+    }
+  }
+
+  /// Actualiza nombre, teléfono y correo del cliente en el servidor.
+  /// Devuelve un mensaje de error, o null si se guardó.
+  Future<String?> updateMyProfile({
+    required String name,
+    required String phone,
+    required String email,
+  }) async {
+    if (currentAccount == null) return 'No hay una cuenta de cliente activa';
+    final cleanEmail = email.trim().toLowerCase();
+    final error = name.trim().isEmpty
+        ? 'Escribe tu nombre'
+        : PhoneInput.validate(phone) ?? AccountInput.validateEmail(cleanEmail);
+    if (error != null) return error;
+    if (_isOfflineSession) {
+      // Cuenta del teléfono: se actualiza aquí mismo.
+      final account = currentAccount!;
+      if (cleanEmail == _offlineAdminEmail ||
+          _accounts.any(
+            (a) => a.clientId != account.clientId && a.email == cleanEmail,
+          )) {
+        return 'Ese correo ya está registrado en otra cuenta';
+      }
+      _replaceAccount(
+        account.copyWith(name: name.trim(), phone: phone, email: cleanEmail),
+      );
+      _upsert(
+        _clients,
+        Client(id: account.clientId, name: name.trim(), phone: phone),
+        (c) => c.id,
+      );
+      _session = AppSession(
+        email: cleanEmail,
+        clientId: account.clientId,
+        role: 'client',
+      );
+    } else {
+      try {
+        final profile = await ApiClient.request(
+          'auth',
+          method: 'PUT',
+          action: 'me',
+          body: {'name': name.trim(), 'phone': phone, 'email': cleanEmail},
+        );
+        _applyProfile(Map<String, dynamic>.from(profile));
+      } catch (e) {
+        return _errorText(e);
+      }
+    }
+    await _saveToStorage();
+    notifyListeners();
+    return null;
+  }
+
+  /// Cambia la contraseña en el servidor (verifica la actual allá).
+  Future<String?> changeMyPassword(String current, String newPassword) async {
+    if (_session == null) return 'No hay una sesión activa';
+    final error = AccountInput.validatePassword(newPassword);
+    if (error != null) return error;
+    if (newPassword == current) {
+      return 'La nueva contraseña debe ser distinta de la actual';
+    }
+    if (_isOfflineSession) {
+      final account = currentAccount;
+      if (account == null || account.passwordHash.isEmpty) {
+        return 'Para cambiar esta contraseña se necesita conexión con el servidor';
+      }
+      if (!PasswordHash.verify(current, account.passwordHash)) {
+        return 'La contraseña actual no es correcta';
+      }
+      _replaceAccount(
+        account.copyWith(passwordHash: PasswordHash.hash(newPassword)),
+      );
+      await _saveToStorage();
+      return null;
+    }
+    try {
+      await ApiClient.request(
+        'auth',
+        method: 'POST',
+        action: 'password',
+        body: {'current': current, 'new': newPassword},
+      );
+      return null;
+    } catch (e) {
+      return _errorText(e);
+    }
+  }
+
+  /// Foto del cliente: se guarda en su cuenta, no en la configuración del
+  /// taller (antes el cliente cambiaba la foto del dueño).
+  void updateMyAvatar(String dataUrl) {
+    final account = currentAccount;
+    if (account == null) return;
+    _replaceAccount(account.copyWith(avatarUrl: dataUrl));
+    _saveToStorage();
+    notifyListeners();
   }
 
   List<Quote> get clientQuotes {
@@ -484,7 +726,10 @@ class AppState extends ChangeNotifier {
       // Session
       final rawSession = prefs.getString(_keySession);
       if (rawSession != null) {
-        _session = AppSession.fromMap(jsonDecode(rawSession));
+        // Sesión del servidor (con token) o del teléfono (sin token).
+        final saved = AppSession.fromMap(jsonDecode(rawSession));
+        _session = saved;
+        ApiClient.token = saved.token.isEmpty ? null : saved.token;
       }
 
       // Settings
@@ -532,41 +777,103 @@ class AppState extends ChangeNotifier {
             .map((e) => Visit.fromMap(Map<String, dynamic>.from(e)))
             .toList();
       }
+      final rawNotices = prefs.getString(_keyNotices);
+      if (rawNotices != null) {
+        _notices = (jsonDecode(rawNotices) as List)
+            .map((e) => AppNotice.fromMap(Map<String, dynamic>.from(e)))
+            .toList();
+      }
 
       notifyListeners();
     } catch (_) {}
-    await _loadFromApi();
+    await refreshFromServer();
   }
 
-  Future<void> _loadFromApi() async {
+  /// Convierte un registro del backend; si viene incompleto o con otro
+  /// formato se registra y se omite, en lugar de interrumpir toda la carga.
+  static T? _parseRecord<T>(
+    String what,
+    dynamic raw,
+    T Function(Map<String, dynamic>) parse,
+  ) {
+    try {
+      return parse(Map<String, dynamic>.from(raw as Map));
+    } catch (error, stack) {
+      debugPrint(
+        '[ERROR] Registro de $what inválido omitido: $error\n$raw\n$stack',
+      );
+      return null;
+    }
+  }
+
+  /// Reemplaza en [list] el registro con el mismo id, o lo agrega.
+  static void _upsert<T>(List<T> list, T item, int Function(T) idOf) {
+    final idx = list.indexWhere((e) => idOf(e) == idOf(item));
+    if (idx == -1) {
+      list.add(item);
+    } else {
+      list[idx] = item;
+    }
+  }
+
+  /// Mensaje para el login cuando la sesión se cerró sola (venció).
+  String? sessionMessage;
+
+  /// Trae del servidor los datos de la sesión actual. Cotizaciones, pagos,
+  /// visitas y clientes se reemplazan por la versión del servidor (así el
+  /// cliente ve los cambios del taller y viceversa); los productos solo se
+  /// agregan porque el servidor no guarda sus fotos ni su margen.
+  /// Con [notify] (por defecto) genera avisos para el cliente comparando lo
+  /// que había con lo nuevo; al iniciar sesión no se generan.
+  /// Devuelve false si no se pudo conectar.
+  Future<bool> refreshFromServer({bool notify = true}) async {
+    if (_session == null || _session!.token.isEmpty) return false;
     final resources = [
       'clientes',
       'productos',
       'cotizaciones',
       'trabajos',
       'pagos',
+      'visitas',
     ];
+    var expired = false;
     final results = await Future.wait(
       resources.map((resource) async {
         try {
           return await ApiClient.request(resource);
+        } on ApiException catch (error) {
+          if (error.statusCode == 401) expired = true;
+          debugPrint('No se pudo cargar $resource: $error');
+          return null;
         } catch (error) {
           debugPrint('Backend no disponible para $resource: $error');
           return null;
         }
       }),
     );
+    if (expired) {
+      _endSession('Tu sesión expiró. Vuelve a iniciar sesión.');
+      return false;
+    }
+    if (results.every((r) => r == null)) return false;
+
+    final before = notify && !isAdmin ? _snapshot() : null;
     final clients = results[0];
     final products = results[1];
     final quotes = results[2];
     final works = results[3];
     final payments = results[4];
+    final visits = results[5];
     if (clients is List) {
       for (final raw in clients) {
-        final item = Client.fromMap(Map<String, dynamic>.from(raw));
-        if (!_clients.any((existing) => existing.id == item.id)) {
-          _clients.add(item);
-        }
+        final item = _parseRecord('cliente', raw, Client.fromMap);
+        if (item != null) _upsert(_clients, item, (c) => c.id);
+      }
+    }
+    if (visits is List) {
+      for (final raw in visits) {
+        final item = _parseRecord('visita', raw, Visit.fromMap);
+        if (item != null) _upsert(_visits, item, (v) => v.id);
       }
     }
     if (products is List) {
@@ -574,36 +881,117 @@ class AppState extends ChangeNotifier {
         final data = Map<String, dynamic>.from(raw);
         data['material'] ??= data['category'] ?? '';
         data['img'] ??= '';
-        final item = Product.fromMap(data);
-        if (!_products.any((existing) => existing.id == item.id)) {
+        final item = _parseRecord('producto', data, Product.fromMap);
+        if (item != null &&
+            !_products.any((existing) => existing.id == item.id)) {
           _products.add(item);
         }
       }
     }
     if (quotes is List) {
       for (final raw in quotes) {
-        final item = Quote.fromMap(Map<String, dynamic>.from(raw));
-        if (!_quotes.any((existing) => existing.id == item.id)) {
-          _quotes.add(item);
-        }
+        final item = _parseRecord('cotización', raw, Quote.fromMap);
+        if (item != null) _upsert(_quotes, item, (q) => q.id);
       }
     }
     if (works is List) {
       for (final raw in works) {
-        final item = Work.fromMap(Map<String, dynamic>.from(raw));
-        if (!_works.any((existing) => existing.id == item.id)) _works.add(item);
+        final item = _parseRecord('trabajo', raw, Work.fromMap);
+        if (item != null && !_works.any((existing) => existing.id == item.id)) {
+          _works.add(item);
+        }
       }
     }
     if (payments is List) {
       for (final raw in payments) {
-        final item = Payment.fromMap(Map<String, dynamic>.from(raw));
-        if (!_payments.any((existing) => existing.id == item.id)) {
-          _payments.add(item);
-        }
+        final item = _parseRecord('pago', raw, Payment.fromMap);
+        if (item != null) _upsert(_payments, item, (p) => p.id);
       }
     }
+    if (before != null) _addNoticesSince(before);
     await _saveToStorage();
     notifyListeners();
+    return true;
+  }
+
+  /// Estado de los pedidos, abonos y visitas del cliente antes de actualizar.
+  ({
+    Map<int, QuoteStatus> status,
+    Map<int, int> photos,
+    Set<int> payments,
+    Map<int, String> visits,
+  })
+  _snapshot() {
+    final mine = clientQuotes;
+    return (
+      status: {for (final q in mine) q.id: q.status},
+      photos: {for (final q in mine) q.id: q.photos.length},
+      payments: _payments.map((p) => p.id).toSet(),
+      visits: {for (final v in _visits) v.id: v.status},
+    );
+  }
+
+  /// Avisos por lo que cambió desde [before] (solo datos del cliente).
+  void _addNoticesSince(
+    ({
+      Map<int, QuoteStatus> status,
+      Map<int, int> photos,
+      Set<int> payments,
+      Map<int, String> visits,
+    })
+    before,
+  ) {
+    final now = DateTime.now();
+    var seq = 0;
+    void add(String text, {int? quoteId}) => _notices.add(
+      AppNotice(
+        id: now.microsecondsSinceEpoch + seq++,
+        text: text,
+        date: now.toIso8601String(),
+        quoteId: quoteId,
+      ),
+    );
+
+    final mine = clientQuotes;
+    final myQuoteIds = mine.map((q) => q.id).toSet();
+    for (final q in mine) {
+      final oldStatus = before.status[q.id];
+      if (oldStatus == null) {
+        add('Tienes una nueva cotización ${q.folio}.', quoteId: q.id);
+      } else if (oldStatus != q.status) {
+        add(
+          'Tu pedido ${q.folio} ahora está: ${q.status.label}.',
+          quoteId: q.id,
+        );
+      }
+      final newPhotos = q.photos.length - (before.photos[q.id] ?? 0);
+      if (newPhotos > 0) {
+        add(
+          newPhotos == 1
+              ? 'El taller agregó una foto del avance de ${q.folio}.'
+              : 'El taller agregó $newPhotos fotos del avance de ${q.folio}.',
+          quoteId: q.id,
+        );
+      }
+    }
+    for (final p in _payments) {
+      if (before.payments.contains(p.id) || !myQuoteIds.contains(p.quoteId)) {
+        continue;
+      }
+      final folio = mine.firstWhere((q) => q.id == p.quoteId).folio;
+      add(
+        'Se registró un abono de ${formatMXN(p.amount)} en $folio.',
+        quoteId: p.quoteId,
+      );
+    }
+    final myId = _session?.clientId;
+    for (final v in _visits) {
+      if (v.clientId != myId) continue;
+      if (before.visits[v.id] == Visit.requested &&
+          v.status == Visit.confirmed) {
+        add('El taller confirmó tu visita del ${v.date} (${v.start}).');
+      }
+    }
   }
 
   Future<void> _saveToStorage() async {
@@ -644,83 +1032,102 @@ class AppState extends ChangeNotifier {
         _keyVisits,
         jsonEncode(_visits.map((visit) => visit.toMap()).toList()),
       );
+      await prefs.setString(
+        _keyNotices,
+        jsonEncode(_notices.map((n) => n.toMap()).toList()),
+      );
     } catch (_) {}
   }
 
   // Authentication
-  String? login(String email, String password) {
+  /// Inicia sesión en el servidor (administrador o cliente). Si no hay
+  /// conexión, usa las cuentas guardadas en el teléfono.
+  Future<String?> login(String email, String password) async {
     final cleanEmail = email.trim().toLowerCase();
-    final isAdminEmail = cleanEmail == 'admin@aluminieros.com';
-
-    if (isAdminEmail) {
-      if (password != '123456') {
-        return 'La contraseña de administrador es incorrecta';
-      }
-      _session = AppSession(
-        email: email,
-        clientId: _clients.first.id,
-        role: 'admin',
+    try {
+      final result = await ApiClient.request(
+        'auth',
+        method: 'POST',
+        action: 'login',
+        body: {'email': cleanEmail, 'password': password},
       );
-      _saveToStorage();
-      notifyListeners();
-      return null;
-    }
-
-    final account = _accounts
-        .where((a) => a.email.toLowerCase() == cleanEmail)
-        .firstOrNull;
-    if (account != null) {
-      if (account.password != password) return 'La contraseña es incorrecta';
-      _session = AppSession(
-        email: email,
-        clientId: account.clientId,
-        role: 'client',
+      _applyProfile(
+        Map<String, dynamic>.from(result['profile']),
+        token: result['token'] as String,
       );
-      _saveToStorage();
-      notifyListeners();
-      return null;
+    } catch (e) {
+      if (_isConnectionError(e)) return _offlineLogin(cleanEmail, password);
+      return _errorText(e);
     }
-
-    return 'No encontramos una cuenta con ese correo';
-  }
-
-  String? register(String name, String phone, String email, String password) {
-    final cleanEmail = email.trim().toLowerCase();
-    if (cleanEmail == 'admin@aluminieros.com' ||
-        _accounts.any((a) => a.email.toLowerCase() == cleanEmail)) {
-      return 'Este correo ya está registrado';
-    }
-
-    final clientId = DateTime.now().millisecondsSinceEpoch;
-    final account = Account(
-      clientId: clientId,
-      name: name.trim(),
-      phone: phone.trim(),
-      email: cleanEmail,
-      password: password,
-    );
-    _accounts.add(account);
-    _clients.insert(
-      0,
-      Client(id: clientId, name: account.name, phone: account.phone),
-    );
-    _sync('clientes', {
-      'id': clientId,
-      'name': account.name,
-      'phone': account.phone,
-    });
-    _session = AppSession(
-      email: cleanEmail,
-      clientId: clientId,
-      role: 'client',
-    );
-    _saveToStorage();
+    await _saveToStorage();
     notifyListeners();
+    // Al entrar no se generan avisos de cambios anteriores.
+    await refreshFromServer(notify: false);
     return null;
   }
 
+  /// Crea la cuenta del cliente en el servidor e inicia su sesión. Si no hay
+  /// conexión, la crea en el teléfono (contraseña cifrada).
+  Future<String?> register(
+    String name,
+    String phone,
+    String email,
+    String password,
+  ) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final error = name.trim().isEmpty
+        ? 'Ingresa tu nombre completo'
+        : PhoneInput.validate(phone) ??
+              AccountInput.validateEmail(cleanEmail) ??
+              AccountInput.validatePassword(password);
+    if (error != null) return error;
+    try {
+      final result = await ApiClient.request(
+        'auth',
+        method: 'POST',
+        action: 'register',
+        body: {
+          'name': name.trim(),
+          'phone': phone,
+          'email': cleanEmail,
+          'password': password,
+        },
+      );
+      _applyProfile(
+        Map<String, dynamic>.from(result['profile']),
+        token: result['token'] as String,
+      );
+    } catch (e) {
+      if (_isConnectionError(e)) {
+        return _offlineRegister(name.trim(), phone, cleanEmail, password);
+      }
+      return _errorText(e);
+    }
+    await _saveToStorage();
+    notifyListeners();
+    // Al entrar no se generan avisos de cambios anteriores.
+    await refreshFromServer(notify: false);
+    return null;
+  }
+
+  /// Cierra la sesión en el servidor (si hay conexión) y en el teléfono.
   void logout() {
+    if (_session?.token.isNotEmpty ?? false) {
+      ApiClient.request('auth', method: 'POST', action: 'logout').catchError((
+        Object error,
+      ) {
+        debugPrint('No se pudo cerrar la sesión en el servidor: $error');
+        return null;
+      });
+    }
+    _endSession(null);
+  }
+
+  void _endSession(String? message) {
     _session = null;
+    _notices = []; // Los avisos son de quien cerró la sesión.
+    ApiClient.token = null;
+    sessionMessage = message;
     _saveToStorage();
     notifyListeners();
   }
@@ -806,6 +1213,20 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateClient(Client c) {
+    final idx = _clients.indexWhere((x) => x.id == c.id);
+    if (idx == -1) return;
+    _clients[idx] = c;
+    _sync(
+      'clientes',
+      {'id': c.id, 'name': c.name, 'phone': c.phone},
+      method: 'PUT',
+      id: c.id,
+    );
+    _saveToStorage();
+    notifyListeners();
+  }
+
   // CRUD Quotes
   void addQuote(Quote q) {
     _quotes.insert(0, q);
@@ -855,6 +1276,35 @@ class AppState extends ChangeNotifier {
       _saveToStorage();
       notifyListeners();
     }
+  }
+
+  /// El cliente aprueba o rechaza su cotización pendiente. Rechazar la deja
+  /// como "Cancelada" (el taller la ve así; no se borra). Devuelve un mensaje
+  /// de error, o null si se aplicó.
+  String? respondToQuote(int quoteId, {required bool approve}) {
+    final idx = _quotes.indexWhere((q) => q.id == quoteId);
+    if (idx == -1) return 'No se encontró la cotización';
+    final quote = _quotes[idx];
+    if (quote.status != QuoteStatus.pendiente) {
+      return 'Esta cotización ya no está pendiente';
+    }
+    final status = approve ? QuoteStatus.aprobada : QuoteStatus.cancelada;
+    _quotes[idx] = quote.copyWith(status: status);
+    // Solo se envía el estado: el servidor permite al cliente este cambio.
+    _sync('cotizaciones', {'status': status.label}, method: 'PUT', id: quoteId);
+    _saveToStorage();
+    notifyListeners();
+    return null;
+  }
+
+  /// Fotos del avance o de la instalación (las sube el taller).
+  void setQuotePhotos(int quoteId, List<String> photos) {
+    final idx = _quotes.indexWhere((q) => q.id == quoteId);
+    if (idx == -1) return;
+    _quotes[idx] = _quotes[idx].copyWith(photos: List.of(photos));
+    _sync('cotizaciones', {'photos': photos}, method: 'PUT', id: quoteId);
+    _saveToStorage();
+    notifyListeners();
   }
 
   void archiveQuote(Quote quote) {
@@ -975,11 +1425,18 @@ class AppState extends ChangeNotifier {
       action: action,
     ).catchError((Object error) {
       if (method == 'PUT' && id != null) {
+        // Si el registro aún no existe en el backend, se crea. Este segundo
+        // intento también puede fallar (sin conexión): se registra y listo.
         return ApiClient.request(
           resource,
           method: 'POST',
           body: {...body, 'id': id},
-        );
+        ).catchError((Object retryError) {
+          debugPrint(
+            'No se pudo sincronizar $resource con el backend: $retryError',
+          );
+          return null;
+        });
       }
       debugPrint('No se pudo sincronizar $resource con el backend: $error');
       return null;
@@ -1001,14 +1458,43 @@ class AppState extends ChangeNotifier {
   }
 
   // CRUD Visits
+  /// Agenda una visita y la envía al servidor: así la solicitud del cliente
+  /// le llega al taller (y la del taller aparece en el portal del cliente).
   void addVisit(Visit v) {
     _visits.insert(0, v);
+    _sync('visitas', v.toMap());
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  /// El taller confirma una visita que solicitó el cliente.
+  void confirmVisit(int id) {
+    final idx = _visits.indexWhere((v) => v.id == id);
+    if (idx == -1) return;
+    final v = _visits[idx];
+    _visits[idx] = Visit(
+      id: v.id,
+      date: v.date,
+      start: v.start,
+      end: v.end,
+      type: v.type,
+      clientId: v.clientId,
+      place: v.place,
+      status: Visit.confirmed,
+    );
+    _sync('visitas', {'status': Visit.confirmed}, method: 'PUT', id: id);
     _saveToStorage();
     notifyListeners();
   }
 
   void deleteVisit(int id) {
     _visits.removeWhere((v) => v.id == id);
+    ApiClient.request('visitas', method: 'DELETE', id: id).catchError((
+      Object error,
+    ) {
+      debugPrint('No se pudo borrar la visita en el backend: $error');
+      return null;
+    });
     _saveToStorage();
     notifyListeners();
   }

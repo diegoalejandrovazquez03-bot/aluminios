@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/constants.dart';
+import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/image_viewer.dart';
@@ -321,7 +322,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       appBar: TopBar(
         title: 'Catálogo Visual',
         showLogo: true,
-        onAvatarTap: () => widget.onNavigate(8),
+        onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
       ),
       body: Column(
         children: [

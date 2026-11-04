@@ -278,6 +278,9 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
         ),
       ),
+      // Los estilos de texto deben existir en los dos temas (claro y oscuro):
+      // si uno los define y el otro no, al cambiar de modo Flutter intenta
+      // mezclar un estilo "heredado" con uno "fijo" y falla (pantalla roja).
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.textOnDark,
@@ -286,7 +289,29 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(kRadius),
           ),
+          textStyle: GoogleFonts.ibmPlexSans(
+            fontWeight: FontWeight.w500,
+            fontSize: 14,
+          ),
         ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.accentDark,
+          textStyle: GoogleFonts.ibmPlexSans(
+            fontWeight: FontWeight.w500,
+            fontSize: 14,
+          ),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.surfaceDark,
+        selectedColor: AppColors.textOnDark,
+        side: const BorderSide(color: AppColors.borderDark),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kRadius),
+        ),
+        labelStyle: GoogleFonts.ibmPlexSans(fontSize: 13),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.textOnDark,

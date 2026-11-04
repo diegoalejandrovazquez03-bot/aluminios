@@ -164,6 +164,10 @@ class Quote {
   final List<QuoteItem> items;
   final double discount;
 
+  /// Fotos del avance o de la instalación que sube el taller
+  /// (data:image/...;base64). El cliente las ve en el detalle de su pedido.
+  final List<String> photos;
+
   Quote({
     required this.id,
     required this.folio,
@@ -172,6 +176,7 @@ class Quote {
     required this.status,
     required this.items,
     this.discount = 0.0,
+    this.photos = const [],
   });
 
   double get subtotal => items.fold(0.0, (acc, it) => acc + it.subtotal);
@@ -186,6 +191,7 @@ class Quote {
     QuoteStatus? status,
     List<QuoteItem>? items,
     double? discount,
+    List<String>? photos,
   }) {
     return Quote(
       id: id ?? this.id,
@@ -195,6 +201,7 @@ class Quote {
       status: status ?? this.status,
       items: items ?? this.items,
       discount: discount ?? this.discount,
+      photos: photos ?? this.photos,
     );
   }
 
@@ -207,6 +214,7 @@ class Quote {
       'status': status.label,
       'items': items.map((x) => x.toMap()).toList(),
       'discount': discount,
+      'photos': photos,
     };
   }
 
@@ -225,6 +233,9 @@ class Quote {
               .toList() ??
           [],
       discount: (map['discount'] as num?)?.toDouble() ?? 0.0,
+      photos:
+          (map['photos'] as List<dynamic>?)?.whereType<String>().toList() ??
+          const [],
     );
   }
 }
@@ -274,6 +285,30 @@ class Visit {
   final int clientId;
   final String place;
 
+  /// 'Solicitada' (la pidió el cliente y falta confirmarla) o 'Confirmada'.
+  /// "Realizada" no se guarda: se deduce de la fecha.
+  final String status;
+
+  static const requested = 'Solicitada';
+  static const confirmed = 'Confirmada';
+
+  /// La fecha ya pasó: se considera realizada.
+  bool get isDone {
+    final d = DateTime.tryParse(date);
+    if (d == null) return false;
+    final now = DateTime.now();
+    return d.isBefore(DateTime(now.year, now.month, now.day));
+  }
+
+  bool get isRequested => !isDone && status == requested;
+
+  /// Estado para mostrar: Realizada, Por confirmar o Confirmada.
+  String get statusLabel => isDone
+      ? 'Realizada'
+      : isRequested
+      ? 'Por confirmar'
+      : 'Confirmada';
+
   Visit({
     required this.id,
     required this.date,
@@ -282,6 +317,7 @@ class Visit {
     required this.type,
     required this.clientId,
     required this.place,
+    this.status = Visit.confirmed,
   });
 
   Map<String, dynamic> toMap() => {
@@ -292,6 +328,7 @@ class Visit {
     'type': type,
     'clientId': clientId,
     'place': place,
+    'status': status,
   };
 
   factory Visit.fromMap(Map<String, dynamic> map) {
@@ -305,6 +342,7 @@ class Visit {
           ? map['clientId']
           : int.parse(map['clientId'].toString()),
       place: map['place'] ?? '',
+      status: map['status'] ?? Visit.confirmed,
     );
   }
 }
@@ -444,7 +482,15 @@ class AppSession {
   final int clientId;
   final String role; // 'admin' | 'client'
 
-  AppSession({required this.email, required this.clientId, required this.role});
+  /// Token de la sesión en el servidor.
+  final String token;
+
+  AppSession({
+    required this.email,
+    required this.clientId,
+    required this.role,
+    this.token = '',
+  });
 
   bool get isAdmin => role == 'admin';
 
@@ -452,6 +498,7 @@ class AppSession {
     'email': email,
     'clientId': clientId,
     'role': role,
+    'token': token,
   };
 
   factory AppSession.fromMap(Map<String, dynamic> map) {
@@ -461,23 +508,34 @@ class AppSession {
           ? map['clientId']
           : int.parse(map['clientId'].toString()),
       role: map['role'] ?? 'client',
+      token: map['token'] ?? '',
     );
   }
 }
 
+/// Datos del cliente con sesión, guardados en el teléfono para mostrarlos sin
+/// conexión. Nunca se guarda la contraseña en texto: las cuentas creadas sin
+/// servidor guardan solo su versión cifrada ([passwordHash]).
 class Account {
   final int clientId;
   final String name;
   final String phone;
   final String email;
-  final String password;
+
+  /// Foto de perfil del cliente (data:image/...;base64). Solo en el teléfono.
+  final String avatarUrl;
+
+  /// Contraseña cifrada (PBKDF2) de una cuenta creada sin servidor; vacía en
+  /// las cuentas del servidor.
+  final String passwordHash;
 
   Account({
     required this.clientId,
     required this.name,
     required this.phone,
     required this.email,
-    required this.password,
+    this.avatarUrl = '',
+    this.passwordHash = '',
   });
 
   Map<String, dynamic> toMap() => {
@@ -485,7 +543,8 @@ class Account {
     'name': name,
     'phone': phone,
     'email': email,
-    'password': password,
+    'avatarUrl': avatarUrl,
+    'passwordHash': passwordHash,
   };
 
   factory Account.fromMap(Map<String, dynamic> map) {
@@ -496,7 +555,62 @@ class Account {
       name: map['name'] ?? '',
       phone: map['phone'] ?? '',
       email: map['email'] ?? '',
-      password: map['password'] ?? '',
+      avatarUrl: map['avatarUrl'] ?? '',
+      passwordHash: map['passwordHash'] ?? '',
     );
   }
+
+  Account copyWith({
+    String? name,
+    String? phone,
+    String? email,
+    String? avatarUrl,
+    String? passwordHash,
+  }) {
+    return Account(
+      clientId: clientId,
+      name: name ?? this.name,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      passwordHash: passwordHash ?? this.passwordHash,
+    );
+  }
+}
+
+/// Aviso para el cliente dentro de la app (cambio de estado, abono, fotos,
+/// visita confirmada). Se genera al actualizar los datos del servidor.
+class AppNotice {
+  final int id;
+  final String text;
+  final String date; // ISO 8601
+  final int? quoteId;
+  final bool read;
+
+  AppNotice({
+    required this.id,
+    required this.text,
+    required this.date,
+    this.quoteId,
+    this.read = false,
+  });
+
+  AppNotice markRead() =>
+      AppNotice(id: id, text: text, date: date, quoteId: quoteId, read: true);
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'text': text,
+    'date': date,
+    'quoteId': quoteId,
+    'read': read,
+  };
+
+  factory AppNotice.fromMap(Map<String, dynamic> map) => AppNotice(
+    id: (map['id'] as num).toInt(),
+    text: map['text'] ?? '',
+    date: map['date'] ?? '',
+    quoteId: (map['quoteId'] as num?)?.toInt(),
+    read: map['read'] == true,
+  );
 }

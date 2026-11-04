@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants.dart';
+import '../../core/app_routes.dart';
 import '../../core/external_links.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
+import '../../widgets/notices_button.dart';
+import '../../widgets/server_refresh.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/visit_status_chip.dart';
 import 'client_order_detail_screen.dart';
 
 class ClientHomeScreen extends StatelessWidget {
@@ -87,133 +91,282 @@ class ClientHomeScreen extends StatelessWidget {
       appBar: TopBar(
         title: 'ALUMINIOS',
         showLogo: true,
-        onAvatarTap: () => onNavigate(3), // Perfil del cliente
+        actions: [NoticesButton(state: state)],
+        onAvatarTap: () =>
+            onNavigate(ClientScreen.perfil), // Perfil del cliente
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-        children: [
-          Text('MI CUENTA', style: AppText.label()),
-          const SizedBox(height: 2),
-          Text(
-            client?.name ?? 'Cliente',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
-              color: fg,
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          if (active != null)
-            _activeOrderCard(context, active, isDark, fg, surface, borderColor)
-          else
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: surface,
-                borderRadius: BorderRadius.circular(kRadius),
-                border: Border.all(color: borderColor),
+      body: RefreshIndicator(
+        // Deslizar hacia abajo trae los cambios del taller (estados, abonos, visitas).
+        onRefresh: () => refreshFromServer(context, state),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+          children: [
+            Text('MI CUENTA', style: AppText.label()),
+            const SizedBox(height: 2),
+            Text(
+              client?.name ?? 'Cliente',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: fg,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Sin pedidos activos',
+            ),
+            const SizedBox(height: 18),
+
+            if (active != null)
+              _activeOrderCard(
+                context,
+                active,
+                isDark,
+                fg,
+                surface,
+                borderColor,
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(kRadius),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sin pedidos activos',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: fg,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      balance > 0
+                          ? 'Saldo pendiente: ${AppState.formatMXN(balance)}'
+                          : 'Revisa el catálogo y pide una cotización.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 12),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                    label: const Text('Escribir al taller'),
+                    onPressed: () => ExternalLinks.whatsApp(
+                      context,
+                      state.settings.bizPhone,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () =>
+                        onNavigate(ClientScreen.catalogo), // Catálogo
+                    child: const Text('Pedir cotización'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            ..._visitsSection(context, fg, surface, borderColor, isDark),
+
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Pedidos anteriores',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: fg,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    balance > 0
-                        ? 'Saldo pendiente: ${AppState.formatMXN(balance)}'
-                        : 'Revisa el catálogo y pide una cotización.',
-                    style: TextStyle(fontSize: 13, color: AppColors.textMuted),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                  label: const Text('Escribir al taller'),
-                  onPressed: () =>
-                      ExternalLinks.whatsApp(context, state.settings.bizPhone),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () => onNavigate(1), // Catálogo
-                  child: const Text('Pedir cotización'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Pedidos anteriores',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: fg,
+                TextButton(
+                  onPressed: () => onNavigate(ClientScreen.pedidos),
+                  child: const Text(
+                    'Ver todos',
+                    style: TextStyle(fontSize: 13),
                   ),
                 ),
-              ),
-              TextButton(
-                onPressed: () => onNavigate(2),
-                child: const Text('Ver todos', style: TextStyle(fontSize: 13)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Container(
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: BorderRadius.circular(kRadius),
-              border: Border.all(color: borderColor),
+              ],
             ),
-            clipBehavior: Clip.antiAlias,
-            child: others.isEmpty
-                ? Padding(
-                    padding: EdgeInsets.all(14),
-                    child: Text(
-                      'Aún no tienes otros pedidos',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textMuted,
+            const SizedBox(height: 4),
+            Container(
+              decoration: BoxDecoration(
+                color: surface,
+                borderRadius: BorderRadius.circular(kRadius),
+                border: Border.all(color: borderColor),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: others.isEmpty
+                  ? Padding(
+                      padding: EdgeInsets.all(14),
+                      child: Text(
+                        'Aún no tienes otros pedidos',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textMuted,
+                        ),
                       ),
-                    ),
-                  )
-                : Column(
-                    children: [
-                      for (int i = 0; i < others.length; i++) ...[
-                        if (i > 0)
-                          Divider(
-                            height: 1,
-                            thickness: 1,
-                            color: isDark
-                                ? AppColors.borderDark
-                                : AppColors.divider,
-                          ),
-                        _orderRow(context, others[i], fg),
+                    )
+                  : Column(
+                      children: [
+                        for (int i = 0; i < others.length; i++) ...[
+                          if (i > 0)
+                            Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: isDark
+                                  ? AppColors.borderDark
+                                  : AppColors.divider,
+                            ),
+                          _orderRow(context, others[i], fg),
+                        ],
                       ],
-                    ],
-                  ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// "Mis visitas": las próximas (de la más cercana a la más lejana) y las
+  /// 3 realizadas más recientes, con su estado.
+  List<Widget> _visitsSection(
+    BuildContext context,
+    Color fg,
+    Color surface,
+    Color borderColor,
+    bool isDark,
+  ) {
+    final clientId = state.session?.clientId;
+    final mine = state.visits.where((v) => v.clientId == clientId).toList();
+    final upcoming = mine.where((v) => !v.isDone).toList()
+      ..sort(
+        (a, b) => '${a.date} ${a.start}'.compareTo('${b.date} ${b.start}'),
+      );
+    final done = mine.where((v) => v.isDone).toList()
+      ..sort(
+        (a, b) => '${b.date} ${b.start}'.compareTo('${a.date} ${a.start}'),
+      );
+    final shown = [...upcoming, ...done.take(3)];
+
+    return [
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Mis visitas',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: fg,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => onNavigate(ClientScreen.catalogo),
+            child: const Text('Solicitar', style: TextStyle(fontSize: 13)),
           ),
         ],
       ),
-    );
+      const SizedBox(height: 4),
+      Container(
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(kRadius),
+          border: Border.all(color: borderColor),
+        ),
+        child: shown.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(
+                  'No tienes visitas. Puedes solicitar una visita técnica desde el catálogo.',
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                ),
+              )
+            : Column(
+                children: [
+                  for (int i = 0; i < shown.length; i++) ...[
+                    if (i > 0)
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: AppColors.divider,
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  shown[i].type,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: fg,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${_visitDate(shown[i].date)} · ${shown[i].start}–${shown[i].end}',
+                                  style: AppText.mono(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w400,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                                if (shown[i].place.isNotEmpty)
+                                  Text(
+                                    shown[i].place,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textMuted,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          VisitStatusChip(visit: shown[i]),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+      ),
+      const SizedBox(height: 24),
+    ];
+  }
+
+  static String _visitDate(String iso) {
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
   }
 
   Widget _activeOrderCard(

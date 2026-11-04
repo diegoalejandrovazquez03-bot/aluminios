@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
 import '../../core/constants.dart';
+import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/sheet_message.dart';
@@ -221,7 +222,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       appBar: TopBar(
         title: 'Anticipos y Pagos',
         showLogo: true,
-        onAvatarTap: () => widget.onNavigate(8),
+        onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

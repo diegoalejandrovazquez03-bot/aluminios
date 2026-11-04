@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/constants.dart';
+import '../core/input_rules.dart';
 import '../core/theme.dart';
 import '../state/app_state.dart';
 
@@ -22,6 +23,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String? _errorMsg;
   bool _obscurePassword = true;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Si la sesión se cerró sola (venció), se explica por qué.
+    _errorMsg = widget.state.sessionMessage;
+  }
 
   @override
   void dispose() {
@@ -32,29 +41,32 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _submit() {
-    setState(() => _errorMsg = null);
-
-    if (_isRegister) {
-      if (_nameCtrl.text.trim().isEmpty) {
-        setState(() => _errorMsg = 'Ingresa tu nombre completo');
-        return;
-      }
-      if (_phoneCtrl.text.trim().length < 10) {
-        setState(() => _errorMsg = 'Ingresa un teléfono válido de 10 dígitos');
-        return;
-      }
-      final err = widget.state.register(
-        _nameCtrl.text,
-        _phoneCtrl.text,
-        _emailCtrl.text,
-        _passCtrl.text,
-      );
-      if (err != null) setState(() => _errorMsg = err);
-    } else {
-      final err = widget.state.login(_emailCtrl.text, _passCtrl.text);
-      if (err != null) setState(() => _errorMsg = err);
+  Future<void> _submit() async {
+    if (_loading) return;
+    if (!_isRegister &&
+        (_emailCtrl.text.trim().isEmpty || _passCtrl.text.isEmpty)) {
+      setState(() => _errorMsg = 'Escribe tu correo y tu contraseña');
+      return;
     }
+    setState(() {
+      _errorMsg = null;
+      _loading = true;
+    });
+    // register() valida nombre, teléfono, correo y contraseña; ambas
+    // funciones consultan al servidor.
+    final err = _isRegister
+        ? await widget.state.register(
+            _nameCtrl.text,
+            _phoneCtrl.text,
+            _emailCtrl.text,
+            _passCtrl.text,
+          )
+        : await widget.state.login(_emailCtrl.text, _passCtrl.text);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _errorMsg = err;
+    });
   }
 
   void _setMode(bool register) {
@@ -201,7 +213,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: _phoneCtrl,
-                      keyboardType: TextInputType.phone,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: PhoneInput.formatters,
                       style: inputText,
                       cursorColor: AppColors.textOnDark,
                       decoration: _field('Teléfono (10 dígitos)'),
@@ -225,7 +238,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     cursorColor: AppColors.textOnDark,
                     onSubmitted: (_) => _submit(),
                     decoration: _field(
-                      'Contraseña',
+                      _isRegister
+                          ? 'Contraseña (mín. ${AccountInput.minPassword} caracteres)'
+                          : 'Contraseña',
                       suffix: IconButton(
                         tooltip: _obscurePassword
                             ? 'Mostrar contraseña'
@@ -269,8 +284,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       foregroundColor: AppColors.bgDark,
                       minimumSize: const Size.fromHeight(50),
                     ),
-                    onPressed: _submit,
-                    child: Text(_isRegister ? 'Crear cuenta' : 'Ingresar'),
+                    onPressed: _loading ? null : _submit,
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(_isRegister ? 'Crear cuenta' : 'Ingresar'),
                   ),
                 ],
               ),

@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
 
 import '../../core/constants.dart';
+import '../../core/input_rules.dart';
+import '../../core/app_routes.dart';
 import '../../core/piece_advisor.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/ai_chat_sheet.dart';
+import '../../widgets/app_image.dart';
+import '../../widgets/measure_field.dart';
 import '../../widgets/sheet_message.dart';
 import '../../widgets/top_bar.dart';
 
@@ -27,31 +32,69 @@ class NewQuoteScreen extends StatefulWidget {
 class _NewQuoteScreenState extends State<NewQuoteScreen> {
   int? _clientId;
   final List<QuoteItem> _items = [];
+  // Un juego de controladores por pieza, creado una sola vez: si se crearan
+  // en build(), cada tecla reiniciaría el campo y se perderían dígitos.
+  final List<_ItemFields> _fields = [];
   double _discount = 0.0;
   final TextEditingController _discCtrl = TextEditingController(text: '0');
 
   @override
   void initState() {
     super.initState();
-    _clientId = widget.state.presetClientId;
+    final preset = widget.state.presetClientId;
+    // Solo se preselecciona si el cliente existe; un valor que no está en la
+    // lista hace fallar el selector.
+    if (widget.state.clients.any((c) => c.id == preset)) _clientId = preset;
+  }
+
+  @override
+  void dispose() {
+    for (final f in _fields) {
+      f.dispose();
+    }
+    _discCtrl.dispose();
+    super.dispose();
   }
 
   double get _subtotal => _items.fold(0.0, (acc, it) => acc + it.subtotal);
   double get _total => _subtotal - (_subtotal * _discount / 100.0);
 
   void _addItem(Product p) {
+    final item = QuoteItem(
+      productId: p.id,
+      width: p.width ?? 120.0,
+      height: p.height ?? 100.0,
+      depth: p.depth,
+      qty: 1,
+      unitPrice: p.price,
+    );
     setState(() {
-      _items.add(
-        QuoteItem(
-          productId: p.id,
-          width: p.width ?? 120.0,
-          height: p.height ?? 100.0,
-          depth: p.depth,
-          qty: 1,
-          unitPrice: p.price,
-        ),
-      );
+      _items.add(item);
+      _fields.add(_ItemFields(item));
     });
+  }
+
+  void _removeItem(int index) {
+    setState(() {
+      _items.removeAt(index);
+      _fields.removeAt(index).dispose();
+    });
+  }
+
+  QuoteItem _withValues(
+    QuoteItem item, {
+    double? width,
+    double? height,
+    int? qty,
+  }) {
+    return QuoteItem(
+      productId: item.productId,
+      width: width ?? item.width,
+      height: height ?? item.height,
+      depth: item.depth,
+      qty: qty ?? item.qty,
+      unitPrice: item.unitPrice,
+    );
   }
 
   void _openProductPicker() {
@@ -219,6 +262,23 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
       );
       return;
     }
+    // Lo que se guarda debe coincidir con lo que se ve en los campos.
+    for (int i = 0; i < _fields.length; i++) {
+      final f = _fields[i];
+      if (MeasureInput.validate(f.width.text) != null ||
+          MeasureInput.validate(f.height.text) != null ||
+          (int.tryParse(f.qty.text) ?? 0) < 1) {
+        setState(() => f.showErrors = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Revisa las medidas de la pieza ${i + 1}: deben ser números mayores a 0.',
+            ),
+          ),
+        );
+        return;
+      }
+    }
 
     final newQuote = Quote(
       id: DateTime.now().millisecondsSinceEpoch,
@@ -226,7 +286,7 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
       clientId: _clientId!,
       date: AppState.today(),
       status: QuoteStatus.pendiente,
-      items: _items,
+      items: List.of(_items),
       discount: _discount,
     );
 
@@ -234,7 +294,7 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Cotización ${newQuote.folio} guardada')),
     );
-    widget.onNavigate(3); // Go to quotes list
+    widget.onNavigate(AdminScreen.cotizaciones); // Go to quotes list
   }
 
   @override
@@ -253,10 +313,7 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
         : null;
 
     return Scaffold(
-      appBar: TopBar(
-        title: 'Nueva Cotización',
-        onBack: () => widget.onNavigate(3),
-      ),
+      appBar: TopBar(title: 'Nueva Cotización'),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -296,12 +353,7 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(6),
-                        child: Image.network(
-                          suggested.img,
-                          width: 42,
-                          height: 36,
-                          fit: BoxFit.cover,
-                        ),
+                        child: AppImage(suggested.img, width: 42, height: 36),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -610,13 +662,37 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
     );
   }
 
+  /// Medida de una pieza: el valor solo pasa a la pieza cuando es válido; si
+  /// no, se marca el error bajo el campo.
+  Widget _measureField({
+    required TextEditingController controller,
+    required String label,
+    required bool showError,
+    required void Function(double value) onValid,
+  }) {
+    final error = MeasureInput.validate(controller.text);
+    return MeasureField(
+      controller: controller,
+      label: label,
+      errorText: (showError || controller.text.isNotEmpty) ? error : null,
+      onChanged: (v) {
+        final value = MeasureInput.parse(v);
+        setState(() {
+          if (value != null) onValid(value);
+        });
+      },
+    );
+  }
+
   Widget _itemRow(int index, bool isDark) {
     final item = _items[index];
+    final fields = _fields[index];
     final prod = widget.state.products
         .where((p) => p.id == item.productId)
         .firstOrNull;
 
     return Container(
+      key: ObjectKey(fields),
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -630,12 +706,7 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: Image.network(
-                  prod?.img ?? '',
-                  width: 44,
-                  height: 38,
-                  fit: BoxFit.cover,
-                ),
+                child: AppImage(prod?.img ?? '', width: 44, height: 38),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -665,100 +736,62 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
                   color: AppColors.cancelled,
                   size: 20,
                 ),
-                onPressed: () => setState(() => _items.removeAt(index)),
+                onPressed: () => _removeItem(index),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: TextField(
-                  controller: TextEditingController(
-                    text: item.width.round().toString(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Ancho (cm)',
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                  ),
-                  onChanged: (v) {
-                    final n = double.tryParse(v);
-                    if (n != null) {
-                      setState(
-                        () => _items[index] = QuoteItem(
-                          productId: item.productId,
-                          width: n,
-                          height: item.height,
-                          depth: item.depth,
-                          qty: item.qty,
-                          unitPrice: item.unitPrice,
-                        ),
-                      );
-                    }
-                  },
+                flex: 3,
+                child: _measureField(
+                  controller: fields.width,
+                  label: 'Ancho',
+                  showError: fields.showErrors,
+                  onValid: (v) =>
+                      _items[index] = _withValues(_items[index], width: v),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
-                child: TextField(
-                  controller: TextEditingController(
-                    text: item.height.round().toString(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Alto (cm)',
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                  ),
-                  onChanged: (v) {
-                    final n = double.tryParse(v);
-                    if (n != null) {
-                      setState(
-                        () => _items[index] = QuoteItem(
-                          productId: item.productId,
-                          width: item.width,
-                          height: n,
-                          depth: item.depth,
-                          qty: item.qty,
-                          unitPrice: item.unitPrice,
-                        ),
-                      );
-                    }
-                  },
+                flex: 3,
+                child: _measureField(
+                  controller: fields.height,
+                  label: 'Alto',
+                  showError: fields.showErrors,
+                  onValid: (v) =>
+                      _items[index] = _withValues(_items[index], height: v),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
+                flex: 2,
                 child: TextField(
-                  controller: TextEditingController(text: item.qty.toString()),
+                  controller: fields.qty,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(3),
+                  ],
+                  decoration: InputDecoration(
                     labelText: 'Cant.',
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    contentPadding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+                    errorText:
+                        fields.showErrors &&
+                            (int.tryParse(fields.qty.text) ?? 0) < 1
+                        ? 'Mín. 1'
+                        : null,
                   ),
                   onChanged: (v) {
                     final n = int.tryParse(v);
-                    if (n != null && n > 0) {
-                      setState(
-                        () => _items[index] = QuoteItem(
-                          productId: item.productId,
-                          width: item.width,
-                          height: item.height,
-                          depth: item.depth,
-                          qty: n,
-                          unitPrice: item.unitPrice,
-                        ),
-                      );
-                    }
+                    setState(() {
+                      if (n != null && n > 0) {
+                        _items[index] = _withValues(_items[index], qty: n);
+                      }
+                    });
                   },
                 ),
               ),
@@ -833,5 +866,24 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
           ),
         ),
     ];
+  }
+}
+
+/// Controladores de texto de una pieza de la cotización.
+class _ItemFields {
+  final TextEditingController width;
+  final TextEditingController height;
+  final TextEditingController qty;
+  bool showErrors = false;
+
+  _ItemFields(QuoteItem item)
+    : width = TextEditingController(text: MeasureInput.format(item.width)),
+      height = TextEditingController(text: MeasureInput.format(item.height)),
+      qty = TextEditingController(text: item.qty.toString());
+
+  void dispose() {
+    width.dispose();
+    height.dispose();
+    qty.dispose();
   }
 }

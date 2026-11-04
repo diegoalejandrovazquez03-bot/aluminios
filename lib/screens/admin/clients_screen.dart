@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants.dart';
+import '../../core/input_rules.dart';
+import '../../core/app_routes.dart';
 import '../../core/external_links.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
@@ -41,12 +43,26 @@ class _ClientsScreenState extends State<ClientsScreen> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Text(
-                client.name,
-                style: const TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w600,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      client.name,
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Editar'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _openClientForm(client: client);
+                    },
+                  ),
+                ],
               ),
               Text(client.phone),
               const SizedBox(height: 20),
@@ -66,7 +82,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   onTap: () {
                     Navigator.pop(ctx);
                     widget.state.setSelectedQuoteId(quote.id);
-                    widget.onNavigate(9);
+                    widget.onNavigate(AdminScreen.detalleCotizacion);
                   },
                 ),
               const SizedBox(height: 12),
@@ -103,76 +119,110 @@ class _ClientsScreenState extends State<ClientsScreen> {
         'Hola $name, un gusto saludarte de parte de ${widget.state.settings.bizName}.',
   );
 
-  void _openNewClientDialog() {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
+  /// Formulario para crear (sin [client]) o editar un cliente. El teléfono
+  /// solo acepta dígitos (máx. 10) y se exige exactamente 10 para guardar.
+  void _openClientForm({Client? client}) {
+    final isEdit = client != null;
+    final nameCtrl = TextEditingController(text: client?.name ?? '');
+    // Al editar un número guardado con espacios o guiones se dejan solo dígitos.
+    final phoneCtrl = TextEditingController(
+      text: (client?.phone ?? '').replaceAll(RegExp(r'\D'), ''),
+    );
+    bool showErrors = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Nuevo Cliente',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.navy,
-              ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final phoneError = PhoneInput.validate(phoneCtrl.text);
+          return Container(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
             ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: 'Nombre completo *'),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Teléfono (10 dígitos) *',
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  isEdit ? 'Editar cliente' : 'Nuevo cliente',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.navy,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: nameCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    labelText: 'Nombre completo *',
+                    errorText: showErrors && nameCtrl.text.trim().isEmpty
+                        ? 'Escribe el nombre del cliente'
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: PhoneInput.formatters,
+                  decoration: InputDecoration(
+                    labelText: 'Teléfono (10 dígitos) *',
+                    counterText: '${phoneCtrl.text.length}/10',
+                    errorText: (showErrors || phoneCtrl.text.length == 10)
+                        ? phoneError
+                        : null,
+                  ),
+                  onChanged: (_) => setSheetState(() {}),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {
+                    // Se valida el texto actual del campo justo antes de guardar.
+                    final error = PhoneInput.validate(phoneCtrl.text);
+                    if (nameCtrl.text.trim().isEmpty || error != null) {
+                      setSheetState(() => showErrors = true);
+                      showSheetMessage(
+                        ctx,
+                        error ?? 'Escribe el nombre del cliente',
+                      );
+                      return;
+                    }
+                    final saved = Client(
+                      id: client?.id ?? DateTime.now().millisecondsSinceEpoch,
+                      name: nameCtrl.text.trim(),
+                      phone: phoneCtrl.text,
+                    );
+                    if (isEdit) {
+                      widget.state.updateClient(saved);
+                    } else {
+                      widget.state.addClient(saved);
+                    }
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          isEdit ? 'Cliente actualizado' : 'Cliente guardado',
+                        ),
+                      ),
+                    );
+                  },
+                  child: Text(isEdit ? 'Guardar cambios' : 'Guardar cliente'),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                if (nameCtrl.text.trim().isEmpty) {
-                  showSheetMessage(ctx, 'Escribe el nombre del cliente');
-                  return;
-                }
-                if (phoneCtrl.text.replaceAll(RegExp(r'\D'), '').length < 10) {
-                  showSheetMessage(ctx, 'El teléfono debe tener 10 dígitos');
-                  return;
-                }
-                final newC = Client(
-                  id: DateTime.now().millisecondsSinceEpoch,
-                  name: nameCtrl.text.trim(),
-                  phone: phoneCtrl.text.trim(),
-                );
-                widget.state.addClient(newC);
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Cliente guardado')),
-                );
-              },
-              child: const Text('Guardar Cliente'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -191,7 +241,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
       appBar: TopBar(
         title: 'Clientes',
         showLogo: true,
-        onAvatarTap: () => widget.onNavigate(8),
+        onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
       ),
       body: Column(
         children: [
@@ -288,7 +338,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
                                   tooltip: 'Nueva cotización',
                                   onPressed: () {
                                     state.setPresetClientId(c.id);
-                                    widget.onNavigate(2); // Go to new quote
+                                    widget.onNavigate(
+                                      AdminScreen.nuevaCotizacion,
+                                    ); // Go to new quote
                                   },
                                 ),
                               ],
@@ -304,7 +356,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.navy,
         foregroundColor: AppColors.onInk,
-        onPressed: _openNewClientDialog,
+        onPressed: () => _openClientForm(),
         child: const Icon(Icons.add),
       ),
     );

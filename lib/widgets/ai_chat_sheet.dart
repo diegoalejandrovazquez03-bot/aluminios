@@ -25,7 +25,27 @@ class _AiChatSheetState extends State<AiChatSheet> {
     },
   ];
   final TextEditingController _controller = TextEditingController();
+  final ScrollController _scroll = ScrollController();
   bool _isTyping = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Lleva la conversación al mensaje más reciente (tras dibujarlo).
+  void _scrollToLatest() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
 
   String _generateReply(String input) {
     final t = input.toLowerCase();
@@ -93,6 +113,7 @@ class _AiChatSheetState extends State<AiChatSheet> {
       _messages.add({'from': 'me', 'text': text.trim()});
       _isTyping = true;
     });
+    _scrollToLatest();
 
     Future.delayed(const Duration(milliseconds: 600), () {
       if (!mounted) return;
@@ -100,15 +121,33 @@ class _AiChatSheetState extends State<AiChatSheet> {
         _messages.add({'from': 'ai', 'text': _generateReply(text)});
         _isTyping = false;
       });
+      _scrollToLatest();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final media = MediaQuery.of(context);
+    final keyboard = media.viewInsets.bottom;
+    // La hoja se acomoda arriba del teclado: ocupa el espacio que queda libre
+    // (sin pasar del 75% de la pantalla) para que el campo y el botón de
+    // enviar nunca queden tapados.
+    final available = media.size.height - keyboard - media.padding.top;
+    final height = keyboard > 0
+        ? available * 0.92
+        : (media.size.height * 0.75).clamp(0.0, available);
+    if (keyboard > 0) _scrollToLatest();
 
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboard),
+      child: _sheet(context, isDark, height),
+    );
+  }
+
+  Widget _sheet(BuildContext context, bool isDark, double height) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
+      height: height,
       decoration: BoxDecoration(
         color: isDark ? AppColors.surfaceDark : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
@@ -167,6 +206,7 @@ class _AiChatSheetState extends State<AiChatSheet> {
           // Messages List
           Expanded(
             child: ListView.builder(
+              controller: _scroll,
               padding: const EdgeInsets.all(16),
               itemCount: _messages.length + (_isTyping ? 1 : 0),
               itemBuilder: (context, i) {
@@ -213,19 +253,13 @@ class _AiChatSheetState extends State<AiChatSheet> {
                       maxWidth: MediaQuery.of(context).size.width * 0.78,
                     ),
                     decoration: BoxDecoration(
-                      color: isMe
-                          ? AppColors.navy
-                          : (isDark
-                                ? AppColors.borderDark
-                                : AppColors.lightBlue),
+                      color: isMe ? AppColors.navy : AppColors.lightBlue,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       m['text']!,
                       style: TextStyle(
-                        color: isMe
-                            ? Colors.white
-                            : (isDark ? Colors.white : AppColors.textDark),
+                        color: isMe ? AppColors.onInk : AppColors.textPrimary,
                         fontSize: 13,
                         height: 1.35,
                       ),

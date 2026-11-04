@@ -5,9 +5,12 @@ import '../../core/theme.dart';
 import 'dart:convert';
 
 import '../../core/constants.dart';
+import '../../core/input_rules.dart';
+import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/sheet_message.dart';
+import '../../widgets/measure_field.dart';
 import '../../widgets/top_bar.dart';
 import 'measure_screen.dart';
 
@@ -58,13 +61,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
       text: product != null ? product.price.toStringAsFixed(0) : '',
     );
     final wCtrl = TextEditingController(
-      text: product?.width != null ? product!.width!.toStringAsFixed(0) : '',
+      text: MeasureInput.format(product?.width),
     );
     final hCtrl = TextEditingController(
-      text: product?.height != null ? product!.height!.toStringAsFixed(0) : '',
+      text: MeasureInput.format(product?.height),
     );
     final dCtrl = TextEditingController(
-      text: product?.depth != null ? product!.depth!.toStringAsFixed(0) : '',
+      text: MeasureInput.format(product?.depth),
     );
 
     showModalBottomSheet(
@@ -140,35 +143,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
                   // Dimensions row
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: TextField(
-                          controller: wCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Ancho (cm)',
-                          ),
-                        ),
+                        child: MeasureField(controller: wCtrl, label: 'Ancho'),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: TextField(
-                          controller: hCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Alto (cm)',
-                          ),
-                        ),
+                        child: MeasureField(controller: hCtrl, label: 'Alto'),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: TextField(
-                          controller: dCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Fondo (cm)',
-                          ),
-                        ),
+                        child: MeasureField(controller: dCtrl, label: 'Fondo'),
                       ),
                     ],
                   ),
@@ -196,10 +182,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           builder: (_) => MeasureScreen(
                             onConfirm: (w, h, d) {
                               setModalState(() {
-                                wCtrl.text = w.round().toString();
-                                hCtrl.text = h.round().toString();
+                                wCtrl.text = MeasureInput.format(w);
+                                hCtrl.text = MeasureInput.format(h);
                                 if (d != null) {
-                                  dCtrl.text = d.toStringAsFixed(1);
+                                  dCtrl.text = MeasureInput.format(d);
                                 }
                               });
                             },
@@ -226,9 +212,20 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         return;
                       }
 
-                      final w = double.tryParse(wCtrl.text);
-                      final h = double.tryParse(hCtrl.text);
-                      final d = double.tryParse(dCtrl.text);
+                      // Medidas opcionales, pero si se escriben deben ser válidas.
+                      for (final c in [wCtrl, hCtrl, dCtrl]) {
+                        if (c.text.trim().isNotEmpty &&
+                            MeasureInput.parse(c.text) == null) {
+                          showSheetMessage(
+                            ctx,
+                            'Revisa las medidas: deben ser números mayores a 0 (máx. 1000 cm)',
+                          );
+                          return;
+                        }
+                      }
+                      final w = MeasureInput.parse(wCtrl.text);
+                      final h = MeasureInput.parse(hCtrl.text);
+                      final d = MeasureInput.parse(dCtrl.text);
 
                       if (product == null) {
                         final newP = Product(
@@ -323,7 +320,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       appBar: TopBar(
         title: 'ALUMINIOS',
         showLogo: true,
-        onAvatarTap: () => widget.onNavigate(8),
+        onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
       ),
       body: Column(
         children: [

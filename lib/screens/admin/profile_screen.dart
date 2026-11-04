@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 
-import 'dart:convert';
-
-import 'package:image_picker/image_picker.dart';
-
 import '../../core/constants.dart';
 import '../../state/app_state.dart';
 import '../../widgets/avatar_widget.dart';
+import '../../widgets/profile_photo_options.dart';
 import '../../widgets/top_bar.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -216,7 +213,7 @@ class ProfileScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: TopBar(title: 'Mi Perfil', onBack: () => onNavigate(0)),
+      appBar: TopBar(title: 'Mi Perfil'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -225,34 +222,13 @@ class ProfileScreen extends StatelessWidget {
             child: Column(
               children: [
                 GestureDetector(
-                  onTap: () async {
-                    try {
-                      final photo = await ImagePicker().pickImage(
-                        source: ImageSource.gallery,
-                        imageQuality: 65,
-                        maxWidth: 1200,
-                        maxHeight: 1200,
-                      );
-                      if (photo != null) {
-                        final bytes = await photo.readAsBytes();
-                        state.updateSettings(
-                          state.settings.copyWith(
-                            avatarUrl:
-                                'data:image/jpeg;base64,${base64Encode(bytes)}',
-                          ),
-                        );
-                      }
-                    } catch (_) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'No se pudo abrir la galería. Revisa los permisos.',
-                          ),
-                        ),
-                      );
-                    }
-                  },
+                  onTap: () => showProfilePhotoOptions(
+                    context,
+                    currentUrl: state.settings.avatarUrl,
+                    onSave: (url) => state.updateSettings(
+                      state.settings.copyWith(avatarUrl: url),
+                    ),
+                  ),
                   child: AvatarWidget(
                     name: 'Juan Pérez',
                     size: 76,

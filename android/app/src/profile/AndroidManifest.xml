@@ -4,4 +4,7 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Solo en pruebas: permite http para hablar con el backend en la PC (192.168.x.x).
+         La versión de publicación exige https. -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

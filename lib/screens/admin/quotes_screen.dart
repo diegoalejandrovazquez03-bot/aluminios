@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 
 import '../../core/constants.dart';
+import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/sheet_message.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/server_refresh.dart';
 import '../../widgets/top_bar.dart';
 
 class QuotesScreen extends StatefulWidget {
@@ -65,9 +67,11 @@ class _QuotesScreenState extends State<QuotesScreen> {
                           itemCount: widget.state.trash.length,
                           itemBuilder: (context, index) {
                             final entry = widget.state.trash[index];
-                            final data = Map<String, dynamic>.from(
-                              entry['data'],
-                            );
+                            final raw = entry['data'];
+                            // Un registro incompleto no debe tumbar la papelera.
+                            final data = raw is Map
+                                ? Map<String, dynamic>.from(raw)
+                                : <String, dynamic>{};
                             final title = switch (entry['type']) {
                               'cotizacion' => 'Cotización ${data['folio']}',
                               'trabajo' => 'Trabajo ${data['title']}',
@@ -128,7 +132,9 @@ class _QuotesScreenState extends State<QuotesScreen> {
   }
 
   List<Quote> _getFilteredQuotes() {
-    if (_filter == 'Todas') return widget.state.quotes;
+    // Copia estable: la lista no cambia de tamaño mientras se dibuja aunque
+    // en ese momento se cancele o restaure una cotización.
+    if (_filter == 'Todas') return List.of(widget.state.quotes);
     if (_filter == 'Pendiente') {
       return widget.state.quotes
           .where((q) => q.status == QuoteStatus.pendiente)
@@ -158,7 +164,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
       appBar: TopBar(
         title: 'Cotizaciones',
         showLogo: true,
-        onAvatarTap: () => widget.onNavigate(8),
+        onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
         actions: [
           IconButton(
             tooltip: 'Papelera',
@@ -185,9 +191,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
                     selected: isSel,
                     selectedColor: AppColors.navy,
                     labelStyle: TextStyle(
-                      color: isSel
-                          ? Colors.white
-                          : (isDark ? Colors.white70 : AppColors.navy),
+                      color: isSel ? AppColors.onInk : AppColors.navy,
                       fontWeight: isSel ? FontWeight.w600 : FontWeight.w500,
                       fontSize: 12,
                     ),
@@ -212,131 +216,150 @@ class _QuotesScreenState extends State<QuotesScreen> {
 
           // Quotes List
           Expanded(
-            child: quotes.isEmpty
-                ? Center(
-                    child: Text(
-                      'No hay cotizaciones con este filtro',
-                      style: TextStyle(color: AppColors.textMuted),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    itemCount: quotes.length,
-                    itemBuilder: (context, i) {
-                      final q = quotes[i];
-                      final client = widget.state.clients
-                          .where((c) => c.id == q.clientId)
-                          .firstOrNull;
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.surfaceDark : Colors.white,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.hairline),
+            child: RefreshIndicator(
+              onRefresh: () => refreshFromServer(context, widget.state),
+              child: quotes.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(top: 120),
+                      children: [
+                        Center(
+                          child: Text(
+                            'No hay cotizaciones con este filtro',
+                            style: TextStyle(color: AppColors.textMuted),
+                          ),
                         ),
-                        child: Material(
-                          type: MaterialType.transparency,
-                          child: InkWell(
+                      ],
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      itemCount: quotes.length,
+                      itemBuilder: (context, i) {
+                        final q = quotes[i];
+                        final client = widget.state.clients
+                            .where((c) => c.id == q.clientId)
+                            .firstOrNull;
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppColors.surfaceDark
+                                : Colors.white,
                             borderRadius: BorderRadius.circular(6),
-                            onTap: () {
-                              widget.state.setSelectedQuoteId(q.id);
-                              widget.onNavigate(9); // DetallePedido
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.lightBlue,
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.hairline),
+                          ),
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(6),
+                              onTap: () {
+                                widget.state.setSelectedQuoteId(q.id);
+                                widget.onNavigate(
+                                  AdminScreen.detalleCotizacion,
+                                ); // DetallePedido
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.lightBlue,
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(
+                                                Icons.receipt_long,
+                                                color: AppColors.navy,
+                                                size: 16,
+                                              ),
                                             ),
-                                            child: Icon(
-                                              Icons.receipt_long,
-                                              color: AppColors.navy,
-                                              size: 16,
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              q.folio,
+                                              style: TextStyle(
+                                                fontFamily: AppText.monoFamily,
+                                                fontFeatures: const [
+                                                  FontFeature.tabularFigures(),
+                                                ],
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 16,
+                                                color: isDark
+                                                    ? Colors.white
+                                                    : AppColors.navy,
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            q.folio,
-                                            style: TextStyle(
-                                              fontFamily: AppText.monoFamily,
-                                              fontFeatures: const [
-                                                FontFeature.tabularFigures(),
-                                              ],
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 16,
-                                              color: isDark
-                                                  ? Colors.white
-                                                  : AppColors.navy,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      StatusBadge(status: q.status),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    client?.name ?? 'Cliente desconocido',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color: isDark
-                                          ? Colors.white
-                                          : AppColors.textDark,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        '${q.date}  •  ${q.items.length} pieza(s)',
-                                        style: TextStyle(
-                                          color: AppColors.textMuted,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      Text(
-                                        AppState.formatMXN(q.total),
-                                        style: TextStyle(
-                                          fontFamily: AppText.monoFamily,
-                                          fontFeatures: const [
-                                            FontFeature.tabularFigures(),
                                           ],
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 16,
-                                          color: isDark
-                                              ? Colors.white
-                                              : AppColors.navy,
                                         ),
+                                        StatusBadge(status: q.status),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      client?.name ?? 'Cliente desconocido',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                        color: isDark
+                                            ? Colors.white
+                                            : AppColors.textDark,
                                       ),
-                                    ],
-                                  ),
-                                ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            '${q.date}  •  ${q.items.length} pieza(s)',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: AppColors.textMuted,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          AppState.formatMXN(q.total),
+                                          style: TextStyle(
+                                            fontFamily: AppText.monoFamily,
+                                            fontFeatures: const [
+                                              FontFeature.tabularFigures(),
+                                            ],
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 16,
+                                            color: isDark
+                                                ? Colors.white
+                                                : AppColors.navy,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
+            ),
           ),
         ],
       ),
@@ -348,7 +371,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
           'Nueva cotización',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
-        onPressed: () => widget.onNavigate(2),
+        onPressed: () => widget.onNavigate(AdminScreen.nuevaCotizacion),
       ),
     );
   }

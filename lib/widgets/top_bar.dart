@@ -92,11 +92,13 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
               child: const AvatarWidget(name: 'Usuario', size: 34),
             ),
           ),
-        IconButton(
-          tooltip: 'Volver',
-          icon: Icon(Icons.arrow_back, color: fg),
-          onPressed: onBack ?? AppNavigation.onBack,
-        ),
+        // En la pantalla raíz no hay a dónde regresar: regresar cerraría la app.
+        if (onBack != null || AppNavigation.canGoBack)
+          IconButton(
+            tooltip: 'Volver',
+            icon: Icon(Icons.arrow_back, color: fg),
+            onPressed: onBack ?? AppNavigation.onBack,
+          ),
         const SizedBox(width: 4),
       ],
     );
