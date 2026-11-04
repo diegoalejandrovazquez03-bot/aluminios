@@ -86,7 +86,11 @@ class ApiClient {
       case 'PUT':
         return client.put(uri, headers: headers, body: jsonEncode(body));
       case 'DELETE':
-        return client.delete(uri, headers: headers);
+        return client.delete(
+          uri,
+          headers: headers,
+          body: body == null ? null : jsonEncode(body),
+        );
       default:
         return client.get(uri, headers: headers);
     }

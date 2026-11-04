@@ -3,6 +3,7 @@ import 'package:aluminios_app/core/app_routes.dart';
 import 'package:aluminios_app/main.dart';
 import 'package:aluminios_app/models/models.dart';
 import 'package:aluminios_app/state/app_state.dart';
+import 'package:aluminios_app/widgets/avatar_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -46,6 +47,7 @@ void main() {
   offlineTests();
   darkModeTests();
   clientPortalExtrasTests();
+  clientProfileExtrasTests();
 
   testWidgets('Cotizaciones abre con datos de ejemplo', (tester) async {
     await pumpAdminApp(tester);
@@ -377,6 +379,8 @@ void clientPortalTests() {
     await tester.tap(find.widgetWithText(NavigationDestination, 'Perfil'));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Editar mis datos'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Editar mis datos'));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -393,6 +397,8 @@ void clientPortalTests() {
       '9993409396',
     );
 
+    await tester.ensureVisible(find.text('Cambiar contraseña'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Cambiar contraseña'));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -737,6 +743,161 @@ void clientPortalExtrasTests() {
     );
     // El detalle se actualizó solo: ya no pide aprobar.
     expect(find.text('¿Aceptas esta cotización?'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+void clientProfileExtrasTests() {
+  test('La dirección se guarda en el servidor y en la ficha', () async {
+    SharedPreferences.setMockInitialValues({});
+    final ana = AppState();
+    await ana.register('Ana', '9991234567', 'ana@c.com', 'secreta1');
+    expect(
+      await ana.updateMyProfile(
+        name: 'Ana',
+        phone: '9991234567',
+        email: 'ana@c.com',
+        address: 'Calle 60 #123, Centro',
+      ),
+      isNull,
+    );
+    expect(ana.currentClient?.address, 'Calle 60 #123, Centro');
+    expect(ana.currentAccount?.address, 'Calle 60 #123, Centro');
+    expect(
+      server
+          .table('clientes')
+          .firstWhere((c) => c['id'] == ana.session!.clientId)['address'],
+      'Calle 60 #123, Centro',
+    );
+  });
+
+  test('La foto de perfil se sube y se recupera en otro teléfono', () async {
+    SharedPreferences.setMockInitialValues({});
+    final ana = AppState();
+    await ana.register('Ana', '9991234567', 'ana@c.com', 'secreta1');
+    ana.updateMyAvatar('data:image/jpeg;base64,FOTO');
+    await Future<void>.delayed(Duration.zero);
+    // "Otro teléfono": almacenamiento vacío, inicia sesión y trae la foto.
+    SharedPreferences.setMockInitialValues({});
+    final other = AppState();
+    await Future<void>.delayed(Duration.zero);
+    expect(await other.login('ana@c.com', 'secreta1'), isNull);
+    expect(other.currentAccount?.avatarUrl, 'data:image/jpeg;base64,FOTO');
+  });
+
+  test('Eliminar la cuenta con servidor', () async {
+    SharedPreferences.setMockInitialValues({});
+    final ana = AppState();
+    await ana.register('Ana', '9991234567', 'ana@c.com', 'secreta1');
+    ana.addVisit(
+      Visit(
+        id: 321,
+        date: '2099-01-02',
+        start: '09:00',
+        end: '12:00',
+        type: 'Toma de medidas',
+        clientId: ana.session!.clientId,
+        place: 'Centro',
+        status: Visit.requested,
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(await ana.deleteMyAccount('mala'), 'La contraseña no es correcta');
+    expect(ana.isLoggedIn, isTrue);
+    expect(await ana.deleteMyAccount('secreta1'), isNull);
+    expect(ana.isLoggedIn, isFalse);
+    expect(ana.sessionMessage, 'Tu cuenta fue eliminada.');
+    expect(server.accounts.any((a) => a['email'] == 'ana@c.com'), isFalse);
+    expect(server.table('visitas'), isEmpty);
+    // Ya no puede entrar.
+    expect(await ana.login('ana@c.com', 'secreta1'), isNotNull);
+  });
+
+  test('Eliminar la cuenta sin servidor', () async {
+    noServer();
+    SharedPreferences.setMockInitialValues({});
+    final ana = AppState();
+    await ana.register('Ana', '9991234567', 'ana@c.com', 'secreta1');
+    expect(await ana.deleteMyAccount('secreta1'), isNull);
+    expect(ana.isLoggedIn, isFalse);
+    expect(await ana.login('ana@c.com', 'secreta1'), isNotNull);
+  });
+
+  test('Las preferencias de avisos se respetan', () async {
+    final s = await _anaWithQuote();
+    s.ana.setNoticePrefs(payments: false);
+    await asUser(s.admin, () async {
+      await s.admin.refreshFromServer();
+      s.admin.addPayment(
+        Payment(
+          id: 7002,
+          quoteId: 9001,
+          date: '28/10/2026',
+          amount: 300,
+          method: 'Efectivo',
+        ),
+      );
+    });
+    await asUser(s.ana, () => s.ana.refreshFromServer());
+    expect(s.ana.notices.where((n) => n.text.contains('abono')), isEmpty);
+  });
+
+  testWidgets('Perfil: avatar real, resumen, errores en vivo y privacidad', (
+    tester,
+  ) async {
+    await pumpClientApp(tester);
+    // La barra superior muestra las iniciales del cliente, no "Usuario".
+    final avatar = tester.widget<AvatarWidget>(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byType(AvatarWidget),
+      ),
+    );
+    expect(avatar.name, 'Ana Ruiz');
+
+    await tester.tap(find.widgetWithText(NavigationDestination, 'Perfil'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pedidos activos'), findsOneWidget);
+    expect(find.text('Saldo pendiente'), findsOneWidget);
+    expect(find.text('Visitas próximas'), findsOneWidget);
+    expect(find.text('Sin dirección'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Editar mis datos'));
+    await tester.tap(find.text('Editar mis datos'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Correo electrónico'),
+      'ana@',
+    );
+    await tester.pump();
+    // El error aparece mientras escribe, sin tener que guardar.
+    expect(find.text('Escribe un correo válido'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Correo electrónico'),
+      'ana@correo.com',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Dirección (opcional)'),
+      'Calle 60 #123',
+    );
+    await tester.pump();
+    expect(find.text('Escribe un correo válido'), findsNothing);
+    await tester.tap(find.text('Guardar cambios'));
+    await tester.pumpAndSettle();
+    // Regresa arriba para ver el recuadro de datos.
+    await tester.drag(find.byType(ListView).first, const Offset(0, 1500));
+    await tester.pumpAndSettle();
+    expect(find.text('Calle 60 #123'), findsOneWidget);
+
+    // Espera a que desaparezca el aviso "Datos actualizados".
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Aviso de privacidad'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aviso de privacidad'));
+    await tester.pumpAndSettle();
+    expect(find.text('Responsable'), findsOneWidget);
+    expect(find.textContaining('datos personales'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 }

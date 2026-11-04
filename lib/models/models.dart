@@ -98,15 +98,29 @@ class Client {
   final String name;
   final String phone;
 
-  Client({required this.id, required this.name, required this.phone});
+  /// Domicilio o dirección de obra (opcional). Rellena la solicitud de visita.
+  final String address;
 
-  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'phone': phone};
+  Client({
+    required this.id,
+    required this.name,
+    required this.phone,
+    this.address = '',
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'phone': phone,
+    'address': address,
+  };
 
   factory Client.fromMap(Map<String, dynamic> map) {
     return Client(
       id: map['id'] is int ? map['id'] : int.parse(map['id'].toString()),
       name: map['name'] ?? '',
       phone: map['phone'] ?? '',
+      address: map['address'] ?? '',
     );
   }
 }
@@ -521,6 +535,7 @@ class Account {
   final String name;
   final String phone;
   final String email;
+  final String address;
 
   /// Foto de perfil del cliente (data:image/...;base64). Solo en el teléfono.
   final String avatarUrl;
@@ -529,13 +544,23 @@ class Account {
   /// las cuentas del servidor.
   final String passwordHash;
 
+  /// Qué avisos quiere recibir: pedidos (estado, cotización nueva, fotos),
+  /// abonos y visitas.
+  final bool noticeOrders;
+  final bool noticePayments;
+  final bool noticeVisits;
+
   Account({
     required this.clientId,
     required this.name,
     required this.phone,
     required this.email,
+    this.address = '',
     this.avatarUrl = '',
     this.passwordHash = '',
+    this.noticeOrders = true,
+    this.noticePayments = true,
+    this.noticeVisits = true,
   });
 
   Map<String, dynamic> toMap() => {
@@ -543,8 +568,12 @@ class Account {
     'name': name,
     'phone': phone,
     'email': email,
+    'address': address,
     'avatarUrl': avatarUrl,
     'passwordHash': passwordHash,
+    'noticeOrders': noticeOrders,
+    'noticePayments': noticePayments,
+    'noticeVisits': noticeVisits,
   };
 
   factory Account.fromMap(Map<String, dynamic> map) {
@@ -555,8 +584,12 @@ class Account {
       name: map['name'] ?? '',
       phone: map['phone'] ?? '',
       email: map['email'] ?? '',
+      address: map['address'] ?? '',
       avatarUrl: map['avatarUrl'] ?? '',
       passwordHash: map['passwordHash'] ?? '',
+      noticeOrders: map['noticeOrders'] != false,
+      noticePayments: map['noticePayments'] != false,
+      noticeVisits: map['noticeVisits'] != false,
     );
   }
 
@@ -564,16 +597,24 @@ class Account {
     String? name,
     String? phone,
     String? email,
+    String? address,
     String? avatarUrl,
     String? passwordHash,
+    bool? noticeOrders,
+    bool? noticePayments,
+    bool? noticeVisits,
   }) {
     return Account(
       clientId: clientId,
       name: name ?? this.name,
       phone: phone ?? this.phone,
       email: email ?? this.email,
+      address: address ?? this.address,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       passwordHash: passwordHash ?? this.passwordHash,
+      noticeOrders: noticeOrders ?? this.noticeOrders,
+      noticePayments: noticePayments ?? this.noticePayments,
+      noticeVisits: noticeVisits ?? this.noticeVisits,
     );
   }
 }

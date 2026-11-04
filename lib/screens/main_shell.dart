@@ -109,6 +109,13 @@ class _MainShellState extends State<MainShell> {
     AppNavigation.canGoBack = _history.length > 1;
     AppNavigation.onBack = _goBack;
     AppNavigation.openMenu = () => _scaffoldKey.currentState?.openDrawer();
+    // Avatar de la barra superior: foto o iniciales de quien tiene la sesión.
+    CurrentUser.name = isAdmin
+        ? state.settings.bizName
+        : (state.currentClient?.name ?? 'Cliente');
+    CurrentUser.photoUrl = isAdmin
+        ? state.settings.avatarUrl
+        : (state.currentAccount?.avatarUrl ?? '');
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Widget currentScreen;

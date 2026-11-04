@@ -172,7 +172,10 @@ class ClientCatalogScreen extends StatelessWidget {
   }
 
   void _requestAppointment(BuildContext context) {
-    final placeCtrl = TextEditingController();
+    // Se rellena con la dirección guardada en su perfil.
+    final placeCtrl = TextEditingController(
+      text: state.currentClient?.address ?? '',
+    );
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     DateTime date = today.add(const Duration(days: 1));

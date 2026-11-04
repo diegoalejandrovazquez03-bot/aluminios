@@ -51,6 +51,8 @@ class FakeServer {
     'email': a['email'],
     'name': a['name'],
     'phone': a['phone'],
+    'address': a['address'] ?? '',
+    'avatarUrl': a['avatarUrl'] ?? '',
   };
 
   http.Response _session(Map<String, dynamic> account) {
@@ -117,9 +119,11 @@ class FakeServer {
           me['name'] = body['name'];
           me['phone'] = body['phone'];
           me['email'] = body['email'];
+          me['address'] = body['address'] ?? '';
           for (final c in table('clientes').where((c) => c['id'] == clientId)) {
             c['name'] = body['name'];
             c['phone'] = body['phone'];
+            c['address'] = body['address'] ?? '';
           }
           return _json(200, _profile(me));
         case 'POST password':
@@ -130,6 +134,24 @@ class FakeServer {
           return _json(204, null);
         case 'POST logout':
           sessions.remove(token);
+          return _json(204, null);
+        case 'PUT avatar':
+          me['avatarUrl'] = body['avatarUrl'];
+          return _json(200, _profile(me));
+        case 'DELETE me':
+          if (me['role'] == 'admin') {
+            return _error(
+              400,
+              'La cuenta del administrador no se puede eliminar.',
+            );
+          }
+          if (me['password'] != body['password']) {
+            return _error(400, 'La contraseña no es correcta');
+          }
+          sessions.removeWhere((_, a) => identical(a, me));
+          table('visitas').removeWhere((v) => v['clientId'] == clientId);
+          table('clientes').removeWhere((c) => c['id'] == clientId);
+          accounts.remove(me);
           return _json(204, null);
       }
     }

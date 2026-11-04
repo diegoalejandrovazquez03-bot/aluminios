@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/constants.dart';
 import '../core/input_rules.dart';
 import '../core/theme.dart';
+import 'privacy_screen.dart';
 import '../state/app_state.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -293,6 +294,24 @@ class _LoginScreenState extends State<LoginScreen> {
                           )
                         : Text(_isRegister ? 'Crear cuenta' : 'Ingresar'),
                   ),
+                  if (_isRegister) ...[
+                    const SizedBox(height: 14),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.mutedOnDark,
+                      ),
+                      onPressed: () =>
+                          PrivacyScreen.open(context, widget.state),
+                      child: const Text(
+                        'Al crear tu cuenta aceptas el Aviso de privacidad',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

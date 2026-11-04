@@ -191,9 +191,10 @@ class AppState extends ChangeNotifier {
 
     final name = profile['name'] as String? ?? '';
     final phone = profile['phone'] as String? ?? '';
+    final address = profile['address'] as String? ?? '';
     _upsert(
       _clients,
-      Client(id: clientId, name: name, phone: phone),
+      Client(id: clientId, name: name, phone: phone, address: address),
       (c) => c.id,
     );
     final existing = _accounts.where((a) => a.clientId == clientId).firstOrNull;
@@ -202,7 +203,15 @@ class AppState extends ChangeNotifier {
       name: name,
       phone: phone,
       email: email,
-      avatarUrl: existing?.avatarUrl ?? '',
+      address: address,
+      // La foto del servidor (si hay) gana; si no, se conserva la local.
+      avatarUrl: (profile['avatarUrl'] as String? ?? '').isNotEmpty
+          ? profile['avatarUrl'] as String
+          : existing?.avatarUrl ?? '',
+      passwordHash: existing?.passwordHash ?? '',
+      noticeOrders: existing?.noticeOrders ?? true,
+      noticePayments: existing?.noticePayments ?? true,
+      noticeVisits: existing?.noticeVisits ?? true,
     );
     if (existing == null) {
       _accounts.add(account);
@@ -217,6 +226,7 @@ class AppState extends ChangeNotifier {
     required String name,
     required String phone,
     required String email,
+    String address = '',
   }) async {
     if (currentAccount == null) return 'No hay una cuenta de cliente activa';
     final cleanEmail = email.trim().toLowerCase();
@@ -234,11 +244,21 @@ class AppState extends ChangeNotifier {
         return 'Ese correo ya está registrado en otra cuenta';
       }
       _replaceAccount(
-        account.copyWith(name: name.trim(), phone: phone, email: cleanEmail),
+        account.copyWith(
+          name: name.trim(),
+          phone: phone,
+          email: cleanEmail,
+          address: address.trim(),
+        ),
       );
       _upsert(
         _clients,
-        Client(id: account.clientId, name: name.trim(), phone: phone),
+        Client(
+          id: account.clientId,
+          name: name.trim(),
+          phone: phone,
+          address: address.trim(),
+        ),
         (c) => c.id,
       );
       _session = AppSession(
@@ -252,7 +272,12 @@ class AppState extends ChangeNotifier {
           'auth',
           method: 'PUT',
           action: 'me',
-          body: {'name': name.trim(), 'phone': phone, 'email': cleanEmail},
+          body: {
+            'name': name.trim(),
+            'phone': phone,
+            'email': cleanEmail,
+            'address': address.trim(),
+          },
         );
         _applyProfile(Map<String, dynamic>.from(profile));
       } catch (e) {
@@ -301,12 +326,72 @@ class AppState extends ChangeNotifier {
 
   /// Foto del cliente: se guarda en su cuenta, no en la configuración del
   /// taller (antes el cliente cambiaba la foto del dueño).
+  /// Con servidor también se sube, para no perderla al cambiar de teléfono.
   void updateMyAvatar(String dataUrl) {
     final account = currentAccount;
     if (account == null) return;
     _replaceAccount(account.copyWith(avatarUrl: dataUrl));
+    if (!_isOfflineSession) {
+      ApiClient.request(
+        'auth',
+        method: 'PUT',
+        action: 'avatar',
+        body: {'avatarUrl': dataUrl},
+      ).catchError((Object error) {
+        debugPrint('No se pudo subir la foto de perfil: ');
+        return null;
+      });
+    }
     _saveToStorage();
     notifyListeners();
+  }
+
+  /// Qué avisos quiere recibir el cliente (se guarda en el teléfono).
+  void setNoticePrefs({bool? orders, bool? payments, bool? visits}) {
+    final account = currentAccount;
+    if (account == null) return;
+    _replaceAccount(
+      account.copyWith(
+        noticeOrders: orders,
+        noticePayments: payments,
+        noticeVisits: visits,
+      ),
+    );
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  /// Elimina la cuenta del cliente (pide su contraseña). Con servidor se
+  /// borra allá; sin servidor, en el teléfono. En ambos casos se quitan sus
+  /// datos personales del teléfono y se cierra la sesión.
+  Future<String?> deleteMyAccount(String password) async {
+    final account = currentAccount;
+    if (account == null || isAdmin) {
+      return 'No hay una cuenta de cliente activa';
+    }
+    if (password.isEmpty) return 'Escribe tu contraseña para confirmar';
+    if (_isOfflineSession) {
+      if (!PasswordHash.verify(password, account.passwordHash)) {
+        return 'La contraseña no es correcta';
+      }
+    } else {
+      try {
+        await ApiClient.request(
+          'auth',
+          method: 'DELETE',
+          action: 'me',
+          body: {'password': password},
+        );
+      } catch (e) {
+        return _errorText(e);
+      }
+    }
+    final clientId = account.clientId;
+    _accounts.removeWhere((a) => a.clientId == clientId);
+    _clients.removeWhere((c) => c.id == clientId);
+    _visits.removeWhere((v) => v.clientId == clientId);
+    _endSession('Tu cuenta fue eliminada.');
+    return null;
   }
 
   List<Quote> get clientQuotes {
@@ -954,7 +1039,12 @@ class AppState extends ChangeNotifier {
 
     final mine = clientQuotes;
     final myQuoteIds = mine.map((q) => q.id).toSet();
-    for (final q in mine) {
+    // Preferencias del cliente (Perfil › Avisos).
+    final prefs = currentAccount;
+    final wantsOrders = prefs?.noticeOrders ?? true;
+    final wantsPayments = prefs?.noticePayments ?? true;
+    final wantsVisits = prefs?.noticeVisits ?? true;
+    for (final q in wantsOrders ? mine : const <Quote>[]) {
       final oldStatus = before.status[q.id];
       if (oldStatus == null) {
         add('Tienes una nueva cotización ${q.folio}.', quoteId: q.id);
@@ -974,7 +1064,7 @@ class AppState extends ChangeNotifier {
         );
       }
     }
-    for (final p in _payments) {
+    for (final p in wantsPayments ? _payments : const <Payment>[]) {
       if (before.payments.contains(p.id) || !myQuoteIds.contains(p.quoteId)) {
         continue;
       }
@@ -985,7 +1075,7 @@ class AppState extends ChangeNotifier {
       );
     }
     final myId = _session?.clientId;
-    for (final v in _visits) {
+    for (final v in wantsVisits ? _visits : const <Visit>[]) {
       if (v.clientId != myId) continue;
       if (before.visits[v.id] == Visit.requested &&
           v.status == Visit.confirmed) {
@@ -1208,7 +1298,7 @@ class AppState extends ChangeNotifier {
   // CRUD Clients
   void addClient(Client c) {
     _clients.insert(0, c);
-    _sync('clientes', {'id': c.id, 'name': c.name, 'phone': c.phone});
+    _sync('clientes', c.toMap());
     _saveToStorage();
     notifyListeners();
   }
@@ -1217,12 +1307,7 @@ class AppState extends ChangeNotifier {
     final idx = _clients.indexWhere((x) => x.id == c.id);
     if (idx == -1) return;
     _clients[idx] = c;
-    _sync(
-      'clientes',
-      {'id': c.id, 'name': c.name, 'phone': c.phone},
-      method: 'PUT',
-      id: c.id,
-    );
+    _sync('clientes', c.toMap(), method: 'PUT', id: c.id);
     _saveToStorage();
     notifyListeners();
   }

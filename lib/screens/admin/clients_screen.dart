@@ -65,6 +65,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 ],
               ),
               Text(client.phone),
+              if (client.address.isNotEmpty) Text(client.address),
               const SizedBox(height: 20),
               const Text(
                 'Cotizaciones',
@@ -128,6 +129,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
     final phoneCtrl = TextEditingController(
       text: (client?.phone ?? '').replaceAll(RegExp(r'\D'), ''),
     );
+    final addressCtrl = TextEditingController(text: client?.address ?? '');
     bool showErrors = false;
 
     showModalBottomSheet(
@@ -185,6 +187,17 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   ),
                   onChanged: (_) => setSheetState(() {}),
                 ),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: addressCtrl,
+                  textCapitalization: TextCapitalization.sentences,
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Dirección (opcional)',
+                    hintText: 'Calle, número, colonia',
+                  ),
+                ),
                 const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: () {
@@ -202,6 +215,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       id: client?.id ?? DateTime.now().millisecondsSinceEpoch,
                       name: nameCtrl.text.trim(),
                       phone: phoneCtrl.text,
+                      address: addressCtrl.text.trim(),
                     );
                     if (isEdit) {
                       widget.state.updateClient(saved);

@@ -89,7 +89,11 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: GestureDetector(
               onTap: onAvatarTap,
-              child: const AvatarWidget(name: 'Usuario', size: 34),
+              child: AvatarWidget(
+                name: CurrentUser.name,
+                imageUrl: CurrentUser.photoUrl,
+                size: 34,
+              ),
             ),
           ),
         // En la pantalla raíz no hay a dónde regresar: regresar cerraría la app.
