@@ -1,0 +1,6 @@
+bin/
+obj/
+.vs/
+*.user
+# Base de datos local de desarrollo
+Aluminios.Api/Data/
