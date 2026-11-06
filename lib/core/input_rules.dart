@@ -47,6 +47,31 @@ class MeasureInput {
   }
 }
 
+/// Montos en pesos: hasta 7 enteros y 2 centavos (coma o punto decimal).
+class MoneyInput {
+  static const keyboard = TextInputType.numberWithOptions(decimal: true);
+
+  static final _pattern = RegExp(r'^\d{0,7}(\.\d{0,2})?$');
+
+  static final List<TextInputFormatter> formatters = [
+    TextInputFormatter.withFunction((oldValue, newValue) {
+      final text = newValue.text.replaceAll(',', '.');
+      return _pattern.hasMatch(text) ? newValue.copyWith(text: text) : oldValue;
+    }),
+  ];
+
+  /// Monto mayor a 0, o null si está vacío o no es válido.
+  static double? parse(String text) {
+    final value = double.tryParse(text.trim().replaceAll(',', '.'));
+    return value == null || value <= 0 ? null : value;
+  }
+
+  /// Texto para rellenar un campo: sin ".0" sobrante y con 2 centavos si hay.
+  static String format(double value) => value == value.roundToDouble()
+      ? value.round().toString()
+      : value.toStringAsFixed(2);
+}
+
 class PhoneInput {
   static const int length = 10;
 

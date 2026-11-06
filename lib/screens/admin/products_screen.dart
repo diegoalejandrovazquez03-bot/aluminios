@@ -58,7 +58,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final nameCtrl = TextEditingController(text: product?.name ?? '');
     final matCtrl = TextEditingController(text: product?.material ?? '');
     final priceCtrl = TextEditingController(
-      text: product != null ? product.price.toStringAsFixed(0) : '',
+      text: product != null ? MoneyInput.format(product.price) : '',
     );
     final wCtrl = TextEditingController(
       text: MeasureInput.format(product?.width),
@@ -133,7 +133,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
                   TextField(
                     controller: priceCtrl,
-                    keyboardType: TextInputType.number,
+                    keyboardType: MoneyInput.keyboard,
+                    inputFormatters: MoneyInput.formatters,
                     decoration: const InputDecoration(
                       labelText: 'Precio base *',
                       prefixText: '\$ ',
@@ -206,7 +207,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         );
                         return;
                       }
-                      final price = double.tryParse(priceCtrl.text) ?? 0.0;
+                      final price = MoneyInput.parse(priceCtrl.text) ?? 0.0;
                       if (price <= 0) {
                         showSheetMessage(ctx, 'Ingresa un precio mayor a 0');
                         return;

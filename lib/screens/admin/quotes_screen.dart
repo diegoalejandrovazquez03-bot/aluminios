@@ -27,6 +27,42 @@ class QuotesScreen extends StatefulWidget {
 
 class _QuotesScreenState extends State<QuotesScreen> {
   String _filter = 'Todas';
+  final _searchController = TextEditingController();
+  String _search = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Minúsculas y sin acentos: "Martínez" se encuentra escribiendo "martinez".
+  static String _norm(String text) {
+    const from = 'áéíóúüñ';
+    const to = 'aeiouun';
+    var out = text.toLowerCase().trim();
+    for (int i = 0; i < from.length; i++) {
+      out = out.replaceAll(from[i], to[i]);
+    }
+    return out;
+  }
+
+  /// Coincide por folio (con o sin #), nombre o teléfono del cliente.
+  bool _matchesSearch(Quote q) {
+    final term = _norm(_search).replaceAll('#', '');
+    if (term.isEmpty) return true;
+    final client = widget.state.clients
+        .where((c) => c.id == q.clientId)
+        .firstOrNull;
+    final digits = term.replaceAll(RegExp(r'\D'), '');
+    return _norm(q.folio).replaceAll('#', '').contains(term) ||
+        _norm(client?.name ?? '').contains(term) ||
+        (digits.isNotEmpty &&
+            digits.length == term.replaceAll(' ', '').length &&
+            (client?.phone ?? '')
+                .replaceAll(RegExp(r'\D'), '')
+                .contains(digits));
+  }
 
   void _showTrash() {
     showModalBottomSheet(
@@ -158,7 +194,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final quotes = _getFilteredQuotes();
+    final quotes = _getFilteredQuotes().where(_matchesSearch).toList();
 
     return Scaffold(
       appBar: TopBar(
@@ -175,6 +211,29 @@ class _QuotesScreenState extends State<QuotesScreen> {
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Buscar por folio, cliente o teléfono...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _search.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Borrar búsqueda',
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _search = '');
+                        },
+                      ),
+              ),
+              onChanged: (val) => setState(() => _search = val),
+            ),
+          ),
+
           // Filter Tabs
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -225,7 +284,10 @@ class _QuotesScreenState extends State<QuotesScreen> {
                       children: [
                         Center(
                           child: Text(
-                            'No hay cotizaciones con este filtro',
+                            _search.trim().isEmpty
+                                ? 'No hay cotizaciones con este filtro'
+                                : 'Ninguna cotización coincide con "${_search.trim()}"',
+                            textAlign: TextAlign.center,
                             style: TextStyle(color: AppColors.textMuted),
                           ),
                         ),

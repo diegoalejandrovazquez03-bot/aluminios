@@ -411,13 +411,16 @@ class AppState extends ChangeNotifier {
   }
 
   // Formatting helpers
+  /// "$ 12,500" en pesos cerrados y "$ 12,500.50" cuando hay centavos
+  /// (antes se redondeaba y un abono de $1,850.50 se veía como $1,851).
   static String formatMXN(num amount) {
+    final cents = (amount * 100).round();
     final formatter = NumberFormat.currency(
       locale: 'es_MX',
       symbol: '\$ ',
-      decimalDigits: 0,
+      decimalDigits: cents % 100 == 0 ? 0 : 2,
     );
-    return formatter.format(amount.round());
+    return formatter.format(cents / 100);
   }
 
   static String today() {

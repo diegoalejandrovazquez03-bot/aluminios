@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../privacy_screen.dart';
+import 'client_payments_screen.dart';
 import '../../widgets/avatar_widget.dart';
 import '../../widgets/profile_photo_options.dart';
 import '../../widgets/sheet_message.dart';
@@ -139,6 +140,12 @@ class ClientProfileScreen extends StatelessWidget {
                 _summaryItem('$upcomingVisits', 'Visitas próximas'),
               ],
             ),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.receipt_long_outlined, size: 18),
+            label: const Text('Mis pagos y recibos'),
+            onPressed: () => ClientPaymentsScreen.open(context, state),
           ),
           const SizedBox(height: 24),
 

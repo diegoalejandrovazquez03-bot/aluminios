@@ -5,6 +5,7 @@ import '../../core/app_routes.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
+import '../../widgets/sales_chart.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/server_refresh.dart';
 import '../../widgets/top_bar.dart';
@@ -183,6 +184,15 @@ class DashboardScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 24),
+
+            _sectionHeader(
+              'Ventas · últimos 6 meses',
+              'Pagos',
+              () => onNavigate(AdminScreen.pagos),
+              isDark,
+            ),
+            SalesChart(data: monthlySales(state.quotes, state.payments, now)),
             const SizedBox(height: 24),
 
             _sectionHeader(

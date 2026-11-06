@@ -64,10 +64,112 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('No hay cotizaciones con este filtro'), findsOneWidget);
     for (final f in ['Pendiente', 'Aprobada', 'Cancelada', 'Todas']) {
+      // En pantalla angosta la fila de filtros se desliza de lado.
+      await tester.ensureVisible(find.widgetWithText(FilterChip, f));
+      await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilterChip, f));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('Buscar cotizaciones por folio, cliente y teléfono', (
+    tester,
+  ) async {
+    final state = await pumpAdminApp(tester);
+    await tapNav(tester, 'Cotizaciones');
+    final quote = state.quotes.first;
+    final client = state.clients.firstWhere((c) => c.id == quote.clientId);
+    final search = find.widgetWithText(
+      TextField,
+      'Buscar por folio, cliente o teléfono...',
+    );
+
+    await tester.enterText(search, quote.folio.replaceAll('#', ''));
+    await tester.pumpAndSettle();
+    expect(find.text(quote.folio), findsOneWidget);
+
+    await tester.enterText(search, client.name.toUpperCase());
+    await tester.pumpAndSettle();
+    expect(find.text(client.name), findsWidgets);
+
+    await tester.enterText(search, client.phone.substring(0, 6));
+    await tester.pumpAndSettle();
+    expect(find.text(client.name), findsWidgets);
+
+    await tester.enterText(search, 'zzz-no-existe');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Ninguna cotización coincide'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Borrar búsqueda'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Ninguna cotización coincide'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Registrar un abono desde el detalle de la cotización', (
+    tester,
+  ) async {
+    final state = await pumpAdminApp(tester);
+    final quote = state.quotes.firstWhere(
+      (q) =>
+          q.status != QuoteStatus.pendiente &&
+          q.status != QuoteStatus.cancelada &&
+          q.total - state.paidOf(q.id) > 100,
+    );
+    final before = state.paidOf(quote.id);
+    final count = state.payments.length;
+
+    await tapNav(tester, 'Cotizaciones');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Buscar por folio, cliente o teléfono...'),
+      quote.folio,
+    );
+    await tester.pumpAndSettle();
+    // El folio aparece en la caja de búsqueda y en la tarjeta: se toca la tarjeta.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.text(quote.folio),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final button = find.widgetWithText(TextButton, 'Registrar abono');
+    await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('por WhatsApp'), findsOneWidget);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    // Más que el saldo: se rechaza con aviso bajo el campo.
+    final amount = find.widgetWithText(TextField, 'Monto a abonar *');
+    await tester.enterText(amount, '9999999');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Registrar pago'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('No puede superar el saldo'), findsOneWidget);
+    expect(state.payments.length, count);
+
+    await tester.enterText(amount, '100,50');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Transferencia'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Registrar pago'));
+    await tester.pumpAndSettle();
+
+    expect(state.payments.length, count + 1);
+    expect(state.payments.last.amount, 100.5);
+    expect(state.payments.last.method, 'Transferencia');
+    expect(state.paidOf(quote.id), closeTo(before + 100.5, 0.001));
+    expect(find.text('Ver recibo'), findsOneWidget);
+    expect(find.text(r'$ 100.50'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Inicio muestra la gráfica de ventas', (tester) async {
+    await pumpAdminApp(tester);
+    expect(find.text('Ventas · últimos 6 meses'), findsOneWidget);
+    expect(find.text('Aprobado'), findsWidgets);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Cancelar una cotización y abrir la papelera', (tester) async {
@@ -701,6 +803,51 @@ void clientPortalExtrasTests() {
     expect(s.ana.unreadNotices, 0);
   });
 
+  testWidgets('El cliente ve su historial de pagos', (tester) async {
+    final state = await pumpClientApp(tester);
+    state.addQuote(
+      Quote(
+        id: 9200,
+        folio: '#9200',
+        clientId: state.session!.clientId,
+        date: '01/11/2026',
+        status: QuoteStatus.aprobada,
+        items: [
+          QuoteItem(
+            productId: 1,
+            width: 120,
+            height: 100,
+            qty: 1,
+            unitPrice: 3000,
+          ),
+        ],
+      ),
+    );
+    state.addPayment(
+      Payment(
+        id: 8001,
+        quoteId: 9200,
+        date: '02/11/2026',
+        amount: 1200.5,
+        method: 'Transferencia',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(NavigationDestination, 'Perfil'));
+    await tester.pumpAndSettle();
+    final button = find.text('Mis pagos y recibos');
+    await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pedido #9200'), findsOneWidget);
+    expect(find.text(r'$ 1,200.50'), findsWidgets); // fila y total pagado
+    expect(find.text(r'$ 1,799.50'), findsOneWidget); // saldo pendiente
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Detalle del pedido: aprobar, PDF y campana de avisos', (
     tester,
   ) async {
@@ -731,7 +878,7 @@ void clientPortalExtrasTests() {
     await tester.tap(find.text('#9100'));
     await tester.pumpAndSettle();
     expect(find.text('¿Aceptas esta cotización?'), findsOneWidget);
-    expect(find.text('Descargar o compartir PDF'), findsOneWidget);
+    expect(find.text('Ver o compartir PDF'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Aprobar'));
     await tester.pumpAndSettle();
@@ -892,7 +1039,12 @@ void clientProfileExtrasTests() {
     // Espera a que desaparezca el aviso "Datos actualizados".
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Aviso de privacidad'));
+    // La lista se construye al deslizar: hay que bajar hasta la opción.
+    await tester.scrollUntilVisible(
+      find.text('Aviso de privacidad'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Aviso de privacidad'));
     await tester.pumpAndSettle();

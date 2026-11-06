@@ -7,6 +7,8 @@ import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/app_image.dart';
 import '../../widgets/image_viewer.dart';
+import '../../widgets/payment_sheet.dart';
+import '../../widgets/pdf_preview_screen.dart';
 import '../../widgets/status_badge.dart';
 
 class ClientOrderDetailScreen extends StatelessWidget {
@@ -275,31 +277,50 @@ class ClientOrderDetailScreen extends StatelessWidget {
             for (final p in quotePayments)
               Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: isDark ? AppColors.surfaceDark : Colors.white,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '${p.date} • ${p.method}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textMuted,
+                // Tocar un abono abre su recibo.
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: () => openReceipt(context, state, p),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${p.date} • ${p.method}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            AppState.formatMXN(p.amount),
+                            style: TextStyle(
+                              fontFamily: AppText.monoFamily,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.done,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.receipt_long_outlined,
+                            size: 16,
+                            color: AppColors.textMuted,
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      AppState.formatMXN(p.amount),
-                      style: TextStyle(
-                        fontFamily: AppText.monoFamily,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.done,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
           ],
@@ -310,7 +331,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
           const SizedBox(height: 16),
           OutlinedButton.icon(
             icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-            label: const Text('Descargar o compartir PDF'),
+            label: const Text('Ver o compartir PDF'),
             onPressed: () => _sharePdf(context, quote),
           ),
         ],
@@ -448,7 +469,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Genera el PDF de la cotización y abre el menú para guardarlo o enviarlo.
+  /// Genera el PDF de la cotización y abre la vista previa para enviarlo.
   Future<void> _sharePdf(BuildContext context, Quote quote) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -462,7 +483,13 @@ class ClientOrderDetailScreen extends StatelessWidget {
             state.products.where((p) => p.id == id).firstOrNull?.name ??
             'Producto',
       );
-      await QuotePdfService.share(file);
+      if (context.mounted) {
+        await showPdfPreview(
+          context,
+          file: file,
+          title: 'Cotización ${quote.folio}',
+        );
+      }
     } catch (error) {
       debugPrint('No se pudo generar el PDF: $error');
       messenger.showSnackBar(

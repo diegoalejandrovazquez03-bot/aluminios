@@ -15,6 +15,8 @@ import '../../state/app_state.dart';
 import '../../widgets/app_image.dart';
 import '../../widgets/avatar_widget.dart';
 import '../../widgets/image_viewer.dart';
+import '../../widgets/payment_sheet.dart';
+import '../../widgets/pdf_preview_screen.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/top_bar.dart';
 import '../../widgets/whatsapp_draft_sheet.dart';
@@ -296,7 +298,7 @@ class QuoteDetailScreen extends StatelessWidget {
                 ),
                 icon: const Icon(Icons.chat_bubble_outline),
                 label: const Text(
-                  'Generar y compartir PDF',
+                  'Ver y compartir PDF',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
                 onPressed: () async {
@@ -316,7 +318,13 @@ class QuoteDetailScreen extends StatelessWidget {
                           'Producto',
                     );
                     if (ctx.mounted) Navigator.pop(ctx);
-                    await QuotePdfService.share(file);
+                    if (context.mounted) {
+                      await showPdfPreview(
+                        context,
+                        file: file,
+                        title: 'Cotización ${quote.folio}',
+                      );
+                    }
                   } catch (error) {
                     messenger.showSnackBar(
                       SnackBar(
@@ -368,28 +376,30 @@ class QuoteDetailScreen extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      quote.folio,
-                      style: TextStyle(
-                        fontFamily: AppText.monoFamily,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : AppColors.navy,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        quote.folio,
+                        style: TextStyle(
+                          fontFamily: AppText.monoFamily,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : AppColors.navy,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Fecha: ${quote.date}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textMuted,
+                      const SizedBox(height: 2),
+                      Text(
+                        'Fecha: ${quote.date}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 GestureDetector(
                   onTap: () => _showStatusPicker(context, quote),
@@ -600,11 +610,13 @@ class QuoteDetailScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Total Cotizado',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
+                    const Expanded(
+                      child: Text(
+                        'Total Cotizado',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                     Text(
@@ -624,9 +636,11 @@ class QuoteDetailScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Anticipos pagados',
-                        style: TextStyle(color: AppColors.done, fontSize: 13),
+                      Expanded(
+                        child: Text(
+                          'Anticipos pagados',
+                          style: TextStyle(color: AppColors.done, fontSize: 13),
+                        ),
                       ),
                       Text(
                         AppState.formatMXN(paid),
@@ -643,12 +657,14 @@ class QuoteDetailScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Saldo pendiente',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.pending,
-                          fontSize: 13,
+                      Expanded(
+                        child: Text(
+                          'Saldo pendiente',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.pending,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       Text(
@@ -666,6 +682,9 @@ class QuoteDetailScreen extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 20),
+
+          _paymentsSection(context, quote, client, paid, saldo),
           const SizedBox(height: 20),
 
           // Fotos del avance: el cliente las ve en el detalle de su pedido.
@@ -687,6 +706,197 @@ class QuoteDetailScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// Mensaje de recordatorio de saldo para WhatsApp (editable antes de enviar).
+  static String reminderMessage({
+    required String bizName,
+    required Quote quote,
+    required Client client,
+    required double paid,
+    required double balance,
+  }) {
+    final firstName = client.name.trim().split(RegExp(r'\s+')).first;
+    final b = StringBuffer()
+      ..writeln('Hola $firstName, le saludamos de $bizName.')
+      ..writeln()
+      ..writeln(
+        'Le recordamos que su pedido ${quote.folio} tiene un saldo '
+        'pendiente de *${AppState.formatMXN(balance)}*.',
+      )
+      ..writeln('Total: ${AppState.formatMXN(quote.total)}');
+    if (paid > 0) b.writeln('Abonado: ${AppState.formatMXN(paid)}');
+    b
+      ..writeln()
+      ..write(
+        'Puede pagar en efectivo, transferencia o tarjeta. '
+        'Cualquier duda estamos a sus órdenes. ¡Gracias!',
+      );
+    return b.toString();
+  }
+
+  Future<void> _sendReminder(
+    BuildContext context,
+    Quote quote,
+    Client client,
+    double paid,
+    double balance,
+  ) async {
+    final ctrl = TextEditingController(
+      text: reminderMessage(
+        bizName: state.settings.bizName,
+        quote: quote,
+        client: client,
+        paid: paid,
+        balance: balance,
+      ),
+    );
+    final message = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Recordatorio de saldo'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            controller: ctrl,
+            minLines: 6,
+            maxLines: 12,
+            style: const TextStyle(fontSize: 14),
+            decoration: const InputDecoration(
+              helperText: 'Puedes editar el mensaje antes de enviarlo.',
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.chat_bubble_outline, size: 18),
+            label: const Text('Abrir WhatsApp'),
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (message == null || message.isEmpty || !context.mounted) return;
+    await ExternalLinks.whatsApp(context, client.phone, message: message);
+  }
+
+  /// Abonos de la cotización (tocar uno abre su recibo), registrar un abono
+  /// nuevo y mandar al cliente un recordatorio del saldo.
+  Widget _paymentsSection(
+    BuildContext context,
+    Quote quote,
+    Client? client,
+    double paid,
+    double saldo,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final payments = state.payments
+        .where((p) => p.quoteId == quote.id)
+        .toList();
+    final canPay = quote.status != QuoteStatus.cancelada && saldo > 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'PAGOS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textMuted,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+            if (canPay)
+              TextButton.icon(
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Registrar abono'),
+                onPressed: () =>
+                    showPaymentSheet(context, state, quoteId: quote.id),
+              ),
+          ],
+        ),
+        if (payments.isEmpty)
+          Text(
+            canPay ? 'Sin abonos todavía.' : 'Sin abonos registrados.',
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.surfaceDark : Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppColors.hairline),
+            ),
+            clipBehavior: Clip.antiAlias,
+            // Material transparente: el efecto al tocar se ve sobre el fondo.
+            child: Material(
+              type: MaterialType.transparency,
+              child: Column(
+                children: [
+                  for (int i = 0; i < payments.length; i++) ...[
+                    if (i > 0) const Divider(height: 1),
+                    ListTile(
+                      dense: true,
+                      leading: Icon(
+                        Icons.check_circle_rounded,
+                        color: AppColors.done,
+                        size: 20,
+                      ),
+                      title: Text(
+                        AppState.formatMXN(payments[i].amount),
+                        style: TextStyle(
+                          fontFamily: AppText.monoFamily,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${payments[i].date} • ${payments[i].method}',
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Recibo',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.blue,
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 18,
+                            color: AppColors.blue,
+                          ),
+                        ],
+                      ),
+                      onTap: () => openReceipt(context, state, payments[i]),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        if (canPay && client != null && client.phone.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.notifications_active_outlined, size: 18),
+            label: const Text('Recordar saldo por WhatsApp'),
+            onPressed: () => _sendReminder(context, quote, client, paid, saldo),
+          ),
+        ],
+      ],
     );
   }
 
