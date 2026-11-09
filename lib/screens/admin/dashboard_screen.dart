@@ -9,6 +9,7 @@ import '../../widgets/sales_chart.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/server_refresh.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 
 class DashboardScreen extends StatelessWidget {
   final AppState state;
@@ -44,20 +45,13 @@ class DashboardScreen extends StatelessWidget {
     'diciembre',
   ];
 
-  /// Acepta fechas 'dd/MM/yyyy' o 'yyyy-MM-dd'.
   static bool _isThisMonth(String date, DateTime now) {
-    final dmy = RegExp(r'^(\d{2})/(\d{2})/(\d{4})$').firstMatch(date);
-    if (dmy != null) {
-      return int.parse(dmy.group(2)!) == now.month &&
-          int.parse(dmy.group(3)!) == now.year;
-    }
-    final iso = DateTime.tryParse(date);
-    return iso != null && iso.month == now.month && iso.year == now.year;
+    final d = parseAppDate(date);
+    return d != null && d.month == now.month && d.year == now.year;
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final now = DateTime.now();
 
     // Saldo por cobrar
@@ -114,246 +108,90 @@ class DashboardScreen extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
           children: [
-            Text(dateLabel, style: AppText.label()),
+            Text(dateLabel, style: AppText.label(color: AppColors.textMuted)),
             const SizedBox(height: 2),
             Text(
               'Resumen',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.textOnDark : AppColors.carbon,
+                color: AppColors.navy,
               ),
             ),
             const SizedBox(height: 18),
 
-            // Cifra principal en carbón
-            InkWell(
-              onTap: () => onNavigate(AdminScreen.pagos), // Pagos
-              borderRadius: BorderRadius.circular(kRadius),
-              child: Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.surfaceDark : AppColors.carbon,
-                  borderRadius: BorderRadius.circular(kRadius),
-                  border: isDark
-                      ? Border.all(color: AppColors.borderDark)
-                      : null,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Saldo por cobrar',
-                      style: TextStyle(fontSize: 13, color: AppColors.aluminum),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      AppState.formatMXN(totalBalance),
-                      style: AppText.mono(
-                        fontSize: 30,
-                        color: AppColors.textOnDark,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      quotesWithBalance == 1
-                          ? 'En 1 cotización aprobada'
-                          : 'En $quotesWithBalance cotizaciones aprobadas',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.aluminum,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.only(top: 12),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          top: BorderSide(color: AppColors.borderDark),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          _monthFigure('Cotizado', quotedMonth, first: true),
-                          _monthFigure('Aprobado', approvedMonth),
-                          _monthFigure('Cobrado', collectedMonth),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            MetricPanel(
+              label: 'Saldo por cobrar',
+              value: AppState.formatMXN(totalBalance),
+              caption: quotesWithBalance == 1
+                  ? 'En 1 cotización aprobada'
+                  : 'En $quotesWithBalance cotizaciones aprobadas',
+              figures: [
+                ('Cotizado', AppState.formatMXN(quotedMonth)),
+                ('Aprobado', AppState.formatMXN(approvedMonth)),
+                ('Cobrado', AppState.formatMXN(collectedMonth)),
+              ],
+              onTap: () => onNavigate(AdminScreen.pagos),
             ),
             const SizedBox(height: 24),
 
-            _sectionHeader(
+            SectionHeader(
               'Ventas · últimos 6 meses',
-              'Pagos',
-              () => onNavigate(AdminScreen.pagos),
-              isDark,
+              action: 'Pagos',
+              onAction: () => onNavigate(AdminScreen.pagos),
             ),
             SalesChart(data: monthlySales(state.quotes, state.payments, now)),
             const SizedBox(height: 24),
 
-            _sectionHeader(
+            SectionHeader(
               'Hoy',
-              'Agenda',
-              () => onNavigate(AdminScreen.agenda),
-              isDark,
+              action: 'Agenda',
+              onAction: () => onNavigate(AdminScreen.agenda),
             ),
-            _listBox(
-              isDark: isDark,
+            ListBox(
               children: todayVisits.isEmpty
                   ? [_emptyRow('Sin visitas agendadas para hoy')]
-                  : [
-                      for (final v in todayVisits)
-                        _visitRow(
-                          v,
-                          isDark,
-                          () => onNavigate(AdminScreen.agenda),
-                        ),
-                    ],
+                  : [for (final v in todayVisits) _visitRow(v)],
             ),
             const SizedBox(height: 24),
 
-            _sectionHeader('Por atender', 'Ver todas', () {
-              state.setQuoteFilter('Pendiente');
-              onNavigate(AdminScreen.cotizaciones);
-            }, isDark),
-            _listBox(
-              isDark: isDark,
+            SectionHeader(
+              'Por atender',
+              action: 'Ver todas',
+              onAction: () {
+                state.setQuoteFilter('Pendiente');
+                onNavigate(AdminScreen.cotizaciones);
+              },
+            ),
+            ListBox(
               children: pendingQuotes.isEmpty
                   ? [_emptyRow('No hay cotizaciones pendientes')]
-                  : [
-                      for (final q in pendingQuotes.take(4))
-                        _quoteRow(q, isDark, () {
-                          state.setSelectedQuoteId(q.id);
-                          onNavigate(
-                            AdminScreen.detalleCotizacion,
-                          ); // Detalle de la cotización
-                        }),
-                    ],
+                  : [for (final q in pendingQuotes.take(4)) _quoteRow(q)],
             ),
             const SizedBox(height: 24),
 
-            _sectionHeader('Módulos', null, null, isDark),
-            _listBox(
-              isDark: isDark,
+            const SectionHeader('Módulos'),
+            ListBox(
               children: [
                 _moduleRow(
                   Icons.payments_outlined,
                   'Anticipos y pagos',
                   () => onNavigate(AdminScreen.pagos),
-                  isDark,
                 ),
                 _moduleRow(
                   Icons.calendar_today_outlined,
                   'Agenda de visitas',
                   () => onNavigate(AdminScreen.agenda),
-                  isDark,
                 ),
                 _moduleRow(
                   Icons.photo_library_outlined,
                   'Catálogo de trabajos',
                   () => onNavigate(AdminScreen.catalogo),
-                  isDark,
                 ),
               ],
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _monthFigure(String label, double value, {bool first = false}) {
-    return Expanded(
-      child: Container(
-        padding: EdgeInsets.only(left: first ? 0 : 12),
-        decoration: first
-            ? null
-            : const BoxDecoration(
-                border: Border(left: BorderSide(color: AppColors.borderDark)),
-              ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, color: AppColors.aluminum),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              AppState.formatMXN(value),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppText.mono(
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-                color: AppColors.textOnDark,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _sectionHeader(
-    String title,
-    String? action,
-    VoidCallback? onAction,
-    bool isDark,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.textOnDark : AppColors.carbon,
-              ),
-            ),
-          ),
-          if (action != null)
-            TextButton(
-              onPressed: onAction,
-              style: TextButton.styleFrom(
-                foregroundColor: isDark
-                    ? const Color(0xFF7FA6CC)
-                    : AppColors.accent,
-                minimumSize: const Size(44, 36),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-              ),
-              child: Text(action, style: const TextStyle(fontSize: 13)),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _listBox({required bool isDark, required List<Widget> children}) {
-    final divider = isDark ? AppColors.borderDark : AppColors.divider;
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : Colors.white,
-        borderRadius: BorderRadius.circular(kRadius),
-        border: Border.all(
-          color: isDark ? AppColors.borderDark : AppColors.border,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          for (int i = 0; i < children.length; i++) ...[
-            if (i > 0) Divider(height: 1, thickness: 1, color: divider),
-            children[i],
-          ],
-        ],
       ),
     );
   }
@@ -374,141 +212,53 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _visitRow(Visit v, bool isDark, VoidCallback onTap) {
+  Widget _visitRow(Visit v) {
     final client = state.clients.where((c) => c.id == v.clientId).firstOrNull;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 52,
-              child: Text(
-                v.start,
-                style: AppText.mono(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  color: AppColors.textMuted,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${v.type} · ${client?.name ?? 'Cliente'}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? AppColors.textOnDark : AppColors.carbon,
-                    ),
-                  ),
-                  if (v.place.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      v.place,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
+    return BoxRow(
+      leading: SizedBox(
+        width: 44,
+        child: Text(
+          v.start,
+          style: AppText.mono(
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+            color: AppColors.textMuted,
+          ),
         ),
       ),
+      title: '${v.type} · ${client?.name ?? 'Cliente'}',
+      subtitle: v.place,
+      onTap: () => onNavigate(AdminScreen.agenda),
     );
   }
 
-  Widget _quoteRow(Quote q, bool isDark, VoidCallback onTap) {
+  Widget _quoteRow(Quote q) {
     final client = state.clients.where((c) => c.id == q.clientId).firstOrNull;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: StatusBadge.dotColor(q.status),
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    client?.name ?? 'Cliente',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? AppColors.textOnDark : AppColors.carbon,
-                    ),
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    '${q.folio} · ${q.status.label}',
-                    style: AppText.mono(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: AppColors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              AppState.formatMXN(q.total),
-              style: AppText.mono(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: isDark ? AppColors.textOnDark : AppColors.carbon,
-              ),
-            ),
-          ],
+    return BoxRow(
+      leading: Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
+          color: StatusBadge.dotColor(q.status),
+          shape: BoxShape.circle,
         ),
       ),
+      title: client?.name ?? 'Cliente',
+      subtitle: '${q.folio} · ${q.status.label}',
+      trailing: MoneyText(AppState.formatMXN(q.total)),
+      onTap: () {
+        state.setSelectedQuoteId(q.id);
+        onNavigate(AdminScreen.detalleCotizacion);
+      },
     );
   }
 
-  Widget _moduleRow(
-    IconData icon,
-    String title,
-    VoidCallback onTap,
-    bool isDark,
-  ) {
-    final fg = isDark ? AppColors.textOnDark : AppColors.carbon;
-    return InkWell(
+  Widget _moduleRow(IconData icon, String title, VoidCallback onTap) {
+    return BoxRow(
+      leading: Icon(icon, size: 20, color: AppColors.navy),
+      title: title,
+      trailing: Icon(Icons.chevron_right, size: 20, color: AppColors.textMuted),
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: fg),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: fg,
-                ),
-              ),
-            ),
-            Icon(Icons.chevron_right, size: 20, color: AppColors.textMuted),
-          ],
-        ),
-      ),
     );
   }
 }

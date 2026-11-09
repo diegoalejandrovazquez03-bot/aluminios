@@ -4,11 +4,13 @@ import '../../core/constants.dart';
 import '../../core/input_rules.dart';
 import '../../core/app_routes.dart';
 import '../../core/external_links.dart';
+import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/avatar_widget.dart';
 import '../../widgets/sheet_message.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 
 class ClientsScreen extends StatefulWidget {
   final AppState state;
@@ -64,46 +66,53 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   ),
                 ],
               ),
-              Text(client.phone),
-              if (client.address.isNotEmpty) Text(client.address),
+              Text(
+                client.phone,
+                style: AppText.mono(fontSize: 14, color: AppColors.textMuted),
+              ),
+              if (client.address.isNotEmpty)
+                Text(
+                  client.address,
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                ),
               const SizedBox(height: 20),
-              const Text(
-                'Cotizaciones',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+              const SectionHeader('Cotizaciones'),
+              ListBox(
+                children: [
+                  if (clientQuotes.isEmpty)
+                    const BoxRow(title: 'Aún no tiene cotizaciones'),
+                  for (final quote in clientQuotes)
+                    BoxRow(
+                      leading: const IconBadge(Icons.receipt_long),
+                      title: quote.folio,
+                      monoTitle: true,
+                      subtitle: '${quote.date} · ${quote.status.label}',
+                      trailing: MoneyText(AppState.formatMXN(quote.total)),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        widget.state.setSelectedQuoteId(quote.id);
+                        widget.onNavigate(AdminScreen.detalleCotizacion);
+                      },
+                    ),
+                ],
               ),
-              if (clientQuotes.isEmpty)
-                const ListTile(title: Text('Aún no tiene cotizaciones')),
-              for (final quote in clientQuotes)
-                ListTile(
-                  leading: const Icon(Icons.receipt_long),
-                  title: Text('${quote.folio} · ${quote.status.label}'),
-                  subtitle: Text(
-                    '${quote.date} · ${AppState.formatMXN(quote.total)}',
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    widget.state.setSelectedQuoteId(quote.id);
-                    widget.onNavigate(AdminScreen.detalleCotizacion);
-                  },
-                ),
-              const SizedBox(height: 12),
-              const Text(
-                'Trabajos asociados',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+              const SizedBox(height: 20),
+              const SectionHeader('Trabajos asociados'),
+              ListBox(
+                children: [
+                  if (clientWorks.isEmpty)
+                    const BoxRow(title: 'Aún no tiene trabajos asociados'),
+                  for (final work in clientWorks)
+                    BoxRow(
+                      leading: const IconBadge(Icons.handyman),
+                      title: work.title,
+                      subtitle: [
+                        if (work.width != null) 'Ancho ${work.width} cm',
+                        if (work.height != null) 'Alto ${work.height} cm',
+                      ].join(' · '),
+                    ),
+                ],
               ),
-              if (clientWorks.isEmpty)
-                const ListTile(title: Text('Aún no tiene trabajos asociados')),
-              for (final work in clientWorks)
-                ListTile(
-                  leading: const Icon(Icons.handyman),
-                  title: Text(work.title),
-                  subtitle: Text(
-                    [
-                      if (work.width != null) 'Ancho ${work.width} cm',
-                      if (work.height != null) 'Alto ${work.height} cm',
-                    ].join(' · '),
-                  ),
-                ),
             ],
           ),
         ),
@@ -154,15 +163,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  isEdit ? 'Editar cliente' : 'Nuevo cliente',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.navy,
-                  ),
-                ),
-                const SizedBox(height: 14),
+                SheetHeader(isEdit ? 'Editar cliente' : 'Nuevo cliente'),
+                const SizedBox(height: 6),
                 TextField(
                   controller: nameCtrl,
                   textCapitalization: TextCapitalization.words,
@@ -244,8 +246,6 @@ class _ClientsScreenState extends State<ClientsScreen> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final clients = state.clients.where((c) {
       final q = _search.toLowerCase();
       return c.name.toLowerCase().contains(q) || c.phone.contains(q);
@@ -271,94 +271,76 @@ class _ClientsScreenState extends State<ClientsScreen> {
           ),
           Expanded(
             child: clients.isEmpty
-                ? Center(
-                    child: Text(
-                      'No hay clientes registrados',
-                      style: TextStyle(color: AppColors.textMuted),
-                    ),
+                ? ListView(
+                    padding: const EdgeInsets.only(top: 40),
+                    children: [
+                      _search.trim().isEmpty
+                          ? EmptyState(
+                              icon: Icons.people_outline,
+                              title: 'No hay clientes registrados',
+                              actionLabel: 'Agregar cliente',
+                              onAction: () => _openClientForm(),
+                            )
+                          : EmptyState(
+                              icon: Icons.search_off,
+                              title:
+                                  'Ningún cliente coincide con "${_search.trim()}"',
+                              message: 'Prueba con otro nombre o teléfono.',
+                            ),
+                    ],
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
+                    // Espacio abajo para que el botón flotante no tape el último.
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
                     itemCount: clients.length,
                     itemBuilder: (context, i) {
                       final c = clients[i];
-                      final clientQuotes = state.quotes
+                      final orders = state.quotes
                           .where((q) => q.clientId == c.id)
-                          .toList();
+                          .length;
 
-                      return Container(
+                      return AppCard(
                         margin: const EdgeInsets.only(bottom: 10),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.surfaceDark : Colors.white,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.hairline),
-                        ),
-                        child: Material(
-                          type: MaterialType.transparency,
-                          child: ListTile(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            onTap: () => _openClientFile(c),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 6,
-                            ),
-                            leading: AvatarWidget(name: c.name, size: 42),
-                            title: Text(
-                              c.name,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                                color: isDark ? Colors.white : AppColors.navy,
+                        padding: EdgeInsets.zero,
+                        child: BoxRow(
+                          onTap: () => _openClientFile(c),
+                          leading: AvatarWidget(name: c.name, size: 42),
+                          title: c.name,
+                          subtitle: '${c.phone} · $orders pedido(s)',
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  Icons.phone_outlined,
+                                  size: 20,
+                                  color: AppColors.navy,
+                                ),
+                                onPressed: () => _callPhone(c.phone),
                               ),
-                            ),
-                            subtitle: Text(
-                              '${c.phone}  •  ${clientQuotes.length} pedido(s)',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textMuted,
+                              IconButton(
+                                icon: Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 20,
+                                  color: AppColors.done,
+                                ),
+                                onPressed: () => _openWhatsApp(c.phone, c.name),
                               ),
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.phone_outlined,
-                                    size: 20,
-                                    color: AppColors.navy,
-                                  ),
-                                  onPressed: () => _callPhone(c.phone),
+                              IconButton(
+                                icon: Icon(
+                                  Icons.note_add_outlined,
+                                  size: 20,
+                                  color: AppColors.blue,
                                 ),
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.chat_bubble_outline,
-                                    size: 20,
-                                    color: AppColors.done,
-                                  ),
-                                  onPressed: () =>
-                                      _openWhatsApp(c.phone, c.name),
-                                ),
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.note_add_outlined,
-                                    size: 20,
-                                    color: AppColors.blue,
-                                  ),
-                                  tooltip: 'Nueva cotización',
-                                  onPressed: () {
-                                    state.setPresetClientId(c.id);
-                                    widget.onNavigate(
-                                      AdminScreen.nuevaCotizacion,
-                                    ); // Go to new quote
-                                  },
-                                ),
-                              ],
-                            ),
+                                tooltip: 'Nueva cotización',
+                                onPressed: () {
+                                  state.setPresetClientId(c.id);
+                                  widget.onNavigate(
+                                    AdminScreen.nuevaCotizacion,
+                                  ); // Go to new quote
+                                },
+                              ),
+                            ],
                           ),
                         ),
                       );
@@ -368,8 +350,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.navy,
-        foregroundColor: AppColors.onInk,
+        tooltip: 'Agregar cliente',
         onPressed: () => _openClientForm(),
         child: const Icon(Icons.add),
       ),

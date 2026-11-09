@@ -18,9 +18,14 @@ enum QuoteStatus {
 }
 
 class Product {
+  /// Precio por m² con el que se crea un producto nuevo (valor de prueba).
+  static const double defaultPricePerM2 = 100;
+
   final int id;
   final String name;
   final String material;
+
+  /// Precio por metro cuadrado. El taller cobra cada pieza por su área.
   final double price;
   final double margin;
   final String img;
@@ -127,11 +132,23 @@ class Client {
 
 class QuoteItem {
   final int productId;
+
+  /// Medidas en cm.
   final double width;
   final double height;
   final double? depth;
   final int qty;
+
+  /// Precio de UNA pieza (área × precio por m²). El servidor calcula los
+  /// totales con este valor.
   final double unitPrice;
+
+  /// Precio por m² con el que se calculó [unitPrice]. Es null en las
+  /// cotizaciones hechas antes del cobro por m² (precio fijo por pieza).
+  final double? pricePerM2;
+
+  /// Nota de la pieza, p. ej. "Ventana de la cocina".
+  final String note;
 
   QuoteItem({
     required this.productId,
@@ -140,7 +157,46 @@ class QuoteItem {
     this.depth,
     required this.qty,
     required this.unitPrice,
+    this.pricePerM2,
+    this.note = '',
   });
+
+  /// Pieza cobrada por área: el precio de una pieza es ancho × alto (en m²)
+  /// por el precio del m², redondeado a centavos.
+  factory QuoteItem.byArea({
+    required int productId,
+    required double width,
+    required double height,
+    double? depth,
+    required int qty,
+    required double pricePerM2,
+    String note = '',
+  }) {
+    return QuoteItem(
+      productId: productId,
+      width: width,
+      height: height,
+      depth: depth,
+      qty: qty,
+      unitPrice: priceFor(width, height, pricePerM2),
+      pricePerM2: pricePerM2,
+      note: note,
+    );
+  }
+
+  /// Área en m² de una pieza con medidas en cm.
+  static double areaOf(double widthCm, double heightCm) =>
+      widthCm * heightCm / 10000;
+
+  /// Precio de una pieza de [widthCm] × [heightCm] a [pricePerM2] el m².
+  static double priceFor(double widthCm, double heightCm, double pricePerM2) =>
+      (areaOf(widthCm, heightCm) * pricePerM2 * 100).roundToDouble() / 100;
+
+  /// Área de una pieza en m².
+  double get area => areaOf(width, height);
+
+  /// Área de todas las piezas de este renglón en m².
+  double get totalArea => area * qty;
 
   double get subtotal => qty * unitPrice;
 
@@ -152,6 +208,8 @@ class QuoteItem {
       'depth': depth,
       'qty': qty,
       'unitPrice': unitPrice,
+      'pricePerM2': pricePerM2,
+      'note': note,
     };
   }
 
@@ -165,6 +223,8 @@ class QuoteItem {
       depth: (map['depth'] as num?)?.toDouble(),
       qty: (map['qty'] as num?)?.toInt() ?? 1,
       unitPrice: (map['unitPrice'] as num?)?.toDouble() ?? 0.0,
+      pricePerM2: (map['pricePerM2'] as num?)?.toDouble(),
+      note: map['note'] as String? ?? '',
     );
   }
 }

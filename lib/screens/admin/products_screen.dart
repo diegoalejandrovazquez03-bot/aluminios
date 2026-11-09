@@ -12,6 +12,8 @@ import '../../state/app_state.dart';
 import '../../widgets/sheet_message.dart';
 import '../../widgets/measure_field.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
+
 import 'measure_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
@@ -57,8 +59,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
   void _openProductForm([Product? product]) {
     final nameCtrl = TextEditingController(text: product?.name ?? '');
     final matCtrl = TextEditingController(text: product?.material ?? '');
+    // Producto nuevo: se propone el precio de prueba por m².
     final priceCtrl = TextEditingController(
-      text: product != null ? MoneyInput.format(product.price) : '',
+      text: MoneyInput.format(product?.price ?? Product.defaultPricePerM2),
     );
     final wCtrl = TextEditingController(
       text: MeasureInput.format(product?.width),
@@ -76,8 +79,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
-          final isDark = Theme.of(ctx).brightness == Brightness.dark;
-
           return Container(
             padding: EdgeInsets.only(
               left: 20,
@@ -86,7 +87,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
             ),
             decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
+              color: AppColors.card,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(10),
               ),
@@ -96,24 +97,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        product == null ? 'Crear producto' : 'Editar producto',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : AppColors.navy,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
+                  SheetHeader(
+                    product == null ? 'Crear producto' : 'Editar producto',
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 6),
 
                   TextField(
                     controller: nameCtrl,
@@ -136,11 +123,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     keyboardType: MoneyInput.keyboard,
                     inputFormatters: MoneyInput.formatters,
                     decoration: const InputDecoration(
-                      labelText: 'Precio base *',
+                      labelText: 'Precio por m² *',
                       prefixText: '\$ ',
+                      suffixText: '/ m²',
+                      helperText: 'Cada pieza se cobra por su área: ancho × alto × precio del m².',
+                      helperMaxLines: 2,
                     ),
                   ),
                   const SizedBox(height: 14),
+                  Text(
+                    'Medidas de referencia (opcional)',
+                    style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 8),
 
                   // Dimensions row
                   Row(
@@ -209,7 +204,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       }
                       final price = MoneyInput.parse(priceCtrl.text) ?? 0.0;
                       if (price <= 0) {
-                        showSheetMessage(ctx, 'Ingresa un precio mayor a 0');
+                        showSheetMessage(
+                          ctx,
+                          'Ingresa un precio por m² mayor a 0',
+                        );
                         return;
                       }
 
@@ -310,7 +308,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final products = _getFilteredProducts();
     final materials = [
       'Todos',
@@ -325,50 +322,23 @@ class _ProductsScreenState extends State<ProductsScreen> {
       ),
       body: Column(
         children: [
-          // Header with Title & Add Button
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Text(
-                    'Productos',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : AppColors.navy,
-                    ),
-                  ),
-                ),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.navy,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                  ),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text(
-                    'Crear nuevo',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                  onPressed: () => _openProductForm(),
-                ),
-              ],
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+            child: SectionHeader(
+              'Productos',
+              action: 'Crear nuevo',
+              actionIcon: Icons.add,
+              onAction: () => _openProductForm(),
             ),
           ),
-
-          // Search Bar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Buscar productos o materiales...',
                 prefixIcon: const Icon(Icons.search, size: 20),
                 suffixIcon: PopupMenuButton<String>(
+                  tooltip: 'Filtrar por material',
                   icon: Icon(
                     Icons.filter_list_rounded,
                     color: _materialFilter != 'Todos'
@@ -394,164 +364,145 @@ class _ProductsScreenState extends State<ProductsScreen> {
               onChanged: (val) => setState(() => _search = val),
             ),
           ),
-          const SizedBox(height: 8),
-
-          // Products List
+          const SizedBox(height: 12),
           Expanded(
             child: products.isEmpty
-                ? Center(
-                    child: Text(
-                      'No hay productos que coincidan',
-                      style: TextStyle(color: AppColors.textMuted),
-                    ),
+                ? ListView(
+                    padding: const EdgeInsets.only(top: 40),
+                    children: [
+                      widget.state.products.isEmpty
+                          ? EmptyState(
+                              icon: Icons.inventory_2_outlined,
+                              title: 'Aún no hay productos',
+                              actionLabel: 'Crear producto',
+                              onAction: () => _openProductForm(),
+                            )
+                          : const EmptyState(
+                              icon: Icons.search_off,
+                              title: 'No hay productos que coincidan',
+                              message: 'Prueba con otro nombre o material.',
+                            ),
+                    ],
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     itemCount: products.length,
-                    itemBuilder: (context, i) {
-                      final p = products[i];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.surfaceDark : Colors.white,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.hairline),
-                        ),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: p.img.startsWith('data:image/')
-                                  ? Image.memory(
-                                      base64Decode(p.img.split(',').last),
-                                      width: 68,
-                                      height: 60,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Image.network(
-                                      p.img,
-                                      width: 68,
-                                      height: 60,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => Container(
-                                        width: 68,
-                                        height: 60,
-                                        color: AppColors.border,
-                                        child: const Icon(
-                                          Icons.image,
-                                          color: Colors.black26,
-                                        ),
-                                      ),
-                                    ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    p.name,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color: isDark
-                                          ? Colors.white
-                                          : AppColors.navy,
-                                    ),
-                                  ),
-                                  Text(
-                                    p.material,
-                                    style: TextStyle(
-                                      color: AppColors.textMuted,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Wrap(
-                                    crossAxisAlignment:
-                                        WrapCrossAlignment.center,
-                                    children: [
-                                      Text(
-                                        AppState.formatMXN(p.price),
-                                        style: TextStyle(
-                                          fontFamily: AppText.monoFamily,
-                                          fontFeatures: const [
-                                            FontFeature.tabularFigures(),
-                                          ],
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                          color: isDark
-                                              ? Colors.white
-                                              : AppColors.navy,
-                                        ),
-                                      ),
-                                      if (p.width != null &&
-                                          p.height != null) ...[
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          '${p.width!.round()}×${p.height!.round()} cm',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: AppColors.textMuted,
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            PopupMenuButton<String>(
-                              icon: Icon(
-                                Icons.more_vert,
-                                color: AppColors.textMuted,
-                                size: 20,
-                              ),
-                              onSelected: (val) {
-                                if (val == 'edit') _openProductForm(p);
-                                if (val == 'del') _confirmDelete(p);
-                              },
-                              itemBuilder: (ctx) => [
-                                const PopupMenuItem(
-                                  value: 'edit',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.edit_outlined, size: 18),
-                                      SizedBox(width: 8),
-                                      Text('Editar'),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'del',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.delete_outline,
-                                        color: AppColors.cancelled,
-                                        size: 18,
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Eliminar',
-                                        style: TextStyle(
-                                          color: AppColors.cancelled,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                    itemBuilder: (context, i) => _productCard(products[i]),
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Tarjeta de un producto: foto, nombre, material, precio y medidas, con
+  /// menú para editar o eliminar.
+  Widget _productCard(Product p) {
+    return AppCard(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
+      onTap: () => _openProductForm(p),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(kRadius),
+            child: SizedBox(
+              width: 68,
+              height: 60,
+              child: p.img.startsWith('data:image/')
+                  ? Image.memory(
+                      base64Decode(p.img.split(',').last),
+                      fit: BoxFit.cover,
+                    )
+                  : Image.network(
+                      p.img,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        color: AppColors.lightBlue,
+                        child: Icon(
+                          Icons.image_outlined,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    color: AppColors.navy,
+                  ),
+                ),
+                Text(
+                  p.material,
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    MoneyText('${AppState.formatMXN(p.price)} / m²'),
+
+                    if (p.width != null && p.height != null) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '${p.width!.round()}×${p.height!.round()} cm',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Opciones',
+            icon: Icon(Icons.more_vert, color: AppColors.textMuted, size: 20),
+            onSelected: (val) {
+              if (val == 'edit') _openProductForm(p);
+              if (val == 'del') _confirmDelete(p);
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined, size: 18),
+                    SizedBox(width: 8),
+                    Text('Editar'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'del',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.delete_outline,
+                      color: AppColors.cancelled,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Eliminar',
+                      style: TextStyle(color: AppColors.cancelled),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/constants.dart';
 import '../../core/input_rules.dart';
 import '../../core/app_routes.dart';
+import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/app_image.dart';
@@ -11,6 +12,7 @@ import '../../widgets/image_viewer.dart';
 import '../../widgets/sheet_message.dart';
 import '../../widgets/measure_field.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 
 class ClientCatalogScreen extends StatelessWidget {
   final AppState state;
@@ -140,13 +142,13 @@ class ClientCatalogScreen extends StatelessWidget {
                   date: AppState.today(),
                   status: QuoteStatus.pendiente,
                   items: [
-                    QuoteItem(
+                    QuoteItem.byArea(
                       productId: product.id,
                       width: w,
                       height: h,
                       depth: product.depth,
                       qty: qty,
-                      unitPrice: product.price,
+                      pricePerM2: product.price,
                     ),
                   ],
                   discount: 0,
@@ -209,15 +211,7 @@ class ClientCatalogScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Solicitar visita técnica',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.navy,
-                  ),
-                ),
-                const SizedBox(height: 8),
+                const SheetHeader('Solicitar visita técnica'),
                 Text(
                   'Un técnico de ${state.settings.bizName} acudirá a tu obra o domicilio para tomar medidas exactas. El taller confirmará la hora.',
                   style: TextStyle(fontSize: 12, color: AppColors.textMuted),
@@ -320,7 +314,7 @@ class ClientCatalogScreen extends StatelessWidget {
       context,
       images: [p.img],
       title: p.name,
-      subtitle: '${p.material} • Desde ${AppState.formatMXN(p.price)}',
+      subtitle: '${p.material} · ${AppState.formatMXN(p.price)} / m²',
       details: hasSize
           ? 'Medidas base: ${p.width!.round()} × ${p.height!.round()} cm'
           : null,
@@ -337,8 +331,6 @@ class ClientCatalogScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       appBar: TopBar(
         title: 'Catálogo de Diseños',
@@ -411,71 +403,54 @@ class ClientCatalogScreen extends StatelessWidget {
           ),
           const SizedBox(height: 18),
 
-          Text(
-            'MODELOS DISPONIBLES',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textMuted,
-              letterSpacing: 1,
+          const SectionHeader('Modelos disponibles'),
+          if (state.products.isEmpty)
+            const EmptyState(
+              icon: Icons.inventory_2_outlined,
+              title: 'Aún no hay modelos en el catálogo',
+              message: 'Pide una visita y te ayudamos con tu proyecto.',
             ),
-          ),
-          const SizedBox(height: 10),
-
           for (final p in state.products)
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.surfaceDark : Colors.white,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.hairline),
-              ),
+            AppCard(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              onTap: () => _openProductViewer(context, p),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => _openProductViewer(context, p),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: AppImage(p.img, width: 74, height: 64),
-                    ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(kRadius),
+                    child: AppImage(p.img, width: 74, height: 64),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => _openProductViewer(context, p),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            p.name,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: isDark ? Colors.white : AppColors.navy,
-                            ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                            color: AppColors.navy,
                           ),
-                          Text(
-                            p.material,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textMuted,
-                            ),
+                        ),
+                        Text(
+                          p.material,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textMuted,
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Desde ${AppState.formatMXN(p.price)}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                              color: isDark ? Colors.white : AppColors.navy,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 4),
+                        MoneyText(
+                          '${AppState.formatMXN(p.price)} / m²',
+
+                          fontSize: 13,
+                        ),
+                      ],
                     ),
                   ),
+
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.navy,

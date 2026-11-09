@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme.dart';
 import '../../core/constants.dart';
 import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/payment_sheet.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 
 class PaymentsScreen extends StatefulWidget {
   final AppState state;
@@ -28,7 +28,6 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     double monthTotal = 0.0;
     for (final p in state.payments) {
@@ -53,213 +52,71 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Metrics Cards Row
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.surfaceDark : Colors.white,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: AppColors.hairline),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total Cobrado',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        AppState.formatMXN(monthTotal),
-                        style: TextStyle(
-                          fontFamily: AppText.monoFamily,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.done,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.surfaceDark : Colors.white,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: AppColors.hairline),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Saldo por Cobrar',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        AppState.formatMXN(pendingBalance),
-                        style: TextStyle(
-                          fontFamily: AppText.monoFamily,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.pending,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+          MetricPanel(
+            label: 'Saldo por cobrar',
+            value: AppState.formatMXN(pendingBalance),
+            figures: [
+              ('Total cobrado', AppState.formatMXN(monthTotal)),
+              ('Pagos registrados', '${state.payments.length}'),
             ],
           ),
-          const SizedBox(height: 20),
-
-          // Register button
+          const SizedBox(height: 16),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
             icon: const Icon(Icons.add),
-            label: const Text(
-              'Registrar nuevo anticipo',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
+            label: const Text('Registrar nuevo anticipo'),
             onPressed: _openNewPaymentModal,
           ),
           const SizedBox(height: 20),
-
-          Text(
-            'HISTORIAL DE ANTICIPOS',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textMuted,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 8),
-
+          const SectionHeader('Historial de anticipos'),
           if (state.payments.isEmpty)
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(
-                child: Text(
-                  'Sin pagos registrados',
-                  style: TextStyle(color: AppColors.textMuted),
-                ),
-              ),
+            EmptyState(
+              icon: Icons.payments_outlined,
+              title: 'Sin pagos registrados',
+              message: 'Los anticipos y abonos aparecerán aquí.',
             )
           else
-            for (final p in state.payments.reversed) ...[
-              Builder(
-                builder: (ctx) {
-                  final q = state.quotes
-                      .where((x) => x.id == p.quoteId)
-                      .firstOrNull;
-                  final c = q != null
-                      ? state.clients
-                            .where((x) => x.id == q.clientId)
-                            .firstOrNull
-                      : null;
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.surfaceDark : Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.hairline),
-                    ),
-                    // Tocar un pago abre su recibo.
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(6),
-                        onTap: () => openReceipt(context, state, p),
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: AppColors.completedBg,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Icon(
-                                  Icons.check_circle_rounded,
-                                  color: AppColors.done,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${q?.folio ?? 'Cotización'} • ${c?.name ?? 'Cliente'}',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                        color: isDark
-                                            ? Colors.white
-                                            : AppColors.navy,
-                                      ),
-                                    ),
-                                    Text(
-                                      '${p.date} • ${p.method}',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textMuted,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Text(
-                                AppState.formatMXN(p.amount),
-                                style: TextStyle(
-                                  fontFamily: AppText.monoFamily,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                  color: AppColors.done,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.receipt_long_outlined,
-                                size: 18,
-                                color: AppColors.textMuted,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
+            ListBox(
+              children: [
+                for (final p in state.payments.reversed) _paymentRow(p),
+              ],
+            ),
         ],
       ),
+    );
+  }
+
+  /// Renglón de un pago; al tocarlo abre su recibo.
+  Widget _paymentRow(Payment p) {
+    final state = widget.state;
+    final q = state.quotes.where((x) => x.id == p.quoteId).firstOrNull;
+    final c = q != null
+        ? state.clients.where((x) => x.id == q.clientId).firstOrNull
+        : null;
+
+    return BoxRow(
+      leading: IconBadge(
+        Icons.check_circle_rounded,
+        color: AppColors.done,
+        background: AppColors.completedBg,
+      ),
+      title: '${q?.folio ?? 'Cotización'} · ${c?.name ?? 'Cliente'}',
+      subtitle: '${p.date} · ${p.method}',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          MoneyText(AppState.formatMXN(p.amount), color: AppColors.done),
+          const SizedBox(width: 4),
+          Icon(
+            Icons.receipt_long_outlined,
+            size: 18,
+            color: AppColors.textMuted,
+          ),
+        ],
+      ),
+      onTap: () => openReceipt(context, state, p),
     );
   }
 }

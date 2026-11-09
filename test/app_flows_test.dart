@@ -4,6 +4,7 @@ import 'package:aluminios_app/main.dart';
 import 'package:aluminios_app/models/models.dart';
 import 'package:aluminios_app/state/app_state.dart';
 import 'package:aluminios_app/widgets/avatar_widget.dart';
+import 'package:aluminios_app/widgets/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -206,9 +207,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ListTile, 'Nueva cotización'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Agregar producto'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(ListTile).first);
+    await tester.tap(find.text('Agregar pieza'));
     await tester.pumpAndSettle();
 
     final width = find.widgetWithText(TextField, 'Ancho').first;
@@ -222,6 +221,49 @@ void main() {
         reason: 'después de escribir "$text"',
       );
     }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Nueva cotización: cada pieza se cobra por m²', (tester) async {
+    final state = await pumpAdminApp(tester);
+    final client = state.clients.first;
+    final product = state.products.first;
+    final before = state.quotes.length;
+    await tester.tap(find.byTooltip('Menú'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Nueva cotización'));
+    await tester.pumpAndSettle();
+
+    // Paso 1: cliente.
+    await tester.tap(find.text('Elegir'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(client.name).last);
+    await tester.pumpAndSettle();
+
+    // Paso 2: una pieza de 150 × 200 cm (3 m²), dos veces.
+    await tester.tap(find.text('Agregar pieza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<int>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(product.name).last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Ancho'), '150');
+    await tester.enterText(find.widgetWithText(TextField, 'Alto'), '200');
+    await tester.enterText(find.widgetWithText(TextField, 'Cantidad'), '2');
+    await tester.pumpAndSettle();
+    expect(find.text('3.00 m²'), findsOneWidget);
+    await tester.tap(find.text('Agregar a la cotización'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Guardar cotización'));
+    await tester.pumpAndSettle();
+
+    expect(state.quotes.length, before + 1);
+    final quote = state.quotes.first;
+    expect(quote.clientId, client.id);
+    expect(quote.items.single.pricePerM2, product.price);
+    expect(quote.items.single.unitPrice, 3 * product.price);
+    expect(quote.total, 6 * product.price);
     expect(tester.takeException(), isNull);
   });
 

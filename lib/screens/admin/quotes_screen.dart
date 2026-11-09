@@ -10,6 +10,7 @@ import '../../widgets/sheet_message.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/server_refresh.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 
 class QuotesScreen extends StatefulWidget {
   final AppState state;
@@ -133,9 +134,9 @@ class _QuotesScreenState extends State<QuotesScreen> {
                                   ),
                                   IconButton(
                                     tooltip: 'Eliminar definitivamente',
-                                    icon: const Icon(
+                                    icon: Icon(
                                       Icons.delete_forever,
-                                      color: Colors.red,
+                                      color: AppColors.cancelled,
                                     ),
                                     onPressed: () {
                                       widget.state.permanentlyDeleteTrashEntry(
@@ -193,7 +194,6 @@ class _QuotesScreenState extends State<QuotesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final quotes = _getFilteredQuotes().where(_matchesSearch).toList();
 
     return Scaffold(
@@ -234,206 +234,158 @@ class _QuotesScreenState extends State<QuotesScreen> {
             ),
           ),
 
-          // Filter Tabs
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: ['Todas', 'Pendiente', 'Aprobada', 'Cancelada'].map((
-                f,
-              ) {
-                final isSel = _filter == f;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(f),
-                    selected: isSel,
-                    selectedColor: AppColors.navy,
-                    labelStyle: TextStyle(
-                      color: isSel ? AppColors.onInk : AppColors.navy,
-                      fontWeight: isSel ? FontWeight.w600 : FontWeight.w500,
-                      fontSize: 12,
-                    ),
-                    backgroundColor: isDark
-                        ? AppColors.surfaceDark
-                        : Colors.white,
-                    side: BorderSide(
-                      color: isSel ? Colors.transparent : AppColors.border,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    onSelected: (val) {
-                      setState(() => _filter = f);
-                      widget.state.setQuoteFilter(f);
-                    },
-                  ),
-                );
-              }).toList(),
-            ),
+          FilterBar(
+            options: const ['Todas', 'Pendiente', 'Aprobada', 'Cancelada'],
+            selected: _filter,
+            onSelected: (f) {
+              setState(() => _filter = f);
+              widget.state.setQuoteFilter(f);
+            },
           ),
 
-          // Quotes List
           Expanded(
             child: RefreshIndicator(
               onRefresh: () => refreshFromServer(context, widget.state),
               child: quotes.isEmpty
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.only(top: 120),
+                      padding: const EdgeInsets.only(top: 40),
                       children: [
-                        Center(
-                          child: Text(
-                            _search.trim().isEmpty
-                                ? 'No hay cotizaciones con este filtro'
-                                : 'Ninguna cotización coincide con "${_search.trim()}"',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: AppColors.textMuted),
-                          ),
-                        ),
+                        _search.trim().isEmpty
+                            ? EmptyState(
+                                icon: Icons.receipt_long_outlined,
+                                title: 'No hay cotizaciones con este filtro',
+                                actionLabel: _filter == 'Todas'
+                                    ? 'Crear cotización'
+                                    : null,
+                                onAction: () => widget.onNavigate(
+                                  AdminScreen.nuevaCotizacion,
+                                ),
+                              )
+                            : EmptyState(
+                                icon: Icons.search_off,
+                                title:
+                                    'Ninguna cotización coincide con "${_search.trim()}"',
+                                message:
+                                    'Prueba con otro folio, nombre o teléfono.',
+                              ),
                       ],
                     )
                   : ListView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
+                      // Espacio abajo para que el botón flotante no tape la última.
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
                       itemCount: quotes.length,
-                      itemBuilder: (context, i) {
-                        final q = quotes[i];
-                        final client = widget.state.clients
-                            .where((c) => c.id == q.clientId)
-                            .firstOrNull;
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? AppColors.surfaceDark
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.hairline),
-                          ),
-                          child: Material(
-                            type: MaterialType.transparency,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(6),
-                              onTap: () {
-                                widget.state.setSelectedQuoteId(q.id);
-                                widget.onNavigate(
-                                  AdminScreen.detalleCotizacion,
-                                ); // DetallePedido
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(8),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.lightBlue,
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                              ),
-                                              child: Icon(
-                                                Icons.receipt_long,
-                                                color: AppColors.navy,
-                                                size: 16,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              q.folio,
-                                              style: TextStyle(
-                                                fontFamily: AppText.monoFamily,
-                                                fontFeatures: const [
-                                                  FontFeature.tabularFigures(),
-                                                ],
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 16,
-                                                color: isDark
-                                                    ? Colors.white
-                                                    : AppColors.navy,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        StatusBadge(status: q.status),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      client?.name ?? 'Cliente desconocido',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                        color: isDark
-                                            ? Colors.white
-                                            : AppColors.textDark,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            '${q.date}  •  ${q.items.length} pieza(s)',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: AppColors.textMuted,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          AppState.formatMXN(q.total),
-                                          style: TextStyle(
-                                            fontFamily: AppText.monoFamily,
-                                            fontFeatures: const [
-                                              FontFeature.tabularFigures(),
-                                            ],
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 16,
-                                            color: isDark
-                                                ? Colors.white
-                                                : AppColors.navy,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                      itemBuilder: (context, i) => _quoteCard(quotes[i]),
                     ),
             ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.navy,
-        foregroundColor: AppColors.onInk,
         icon: const Icon(Icons.add),
         label: const Text(
           'Nueva cotización',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         onPressed: () => widget.onNavigate(AdminScreen.nuevaCotizacion),
+      ),
+    );
+  }
+
+  /// Tarjeta de una cotización: folio y estado arriba; cliente, fecha,
+  /// piezas y total abajo. Si tiene saldo, una barra muestra cuánto se pagó.
+  Widget _quoteCard(Quote q) {
+    final client = widget.state.clients
+        .where((c) => c.id == q.clientId)
+        .firstOrNull;
+    final paid = widget.state.paidOf(q.id);
+    final showProgress =
+        q.status != QuoteStatus.pendiente &&
+        q.status != QuoteStatus.cancelada &&
+        q.total > 0;
+    final progress = showProgress ? (paid / q.total).clamp(0.0, 1.0) : 0.0;
+
+    return AppCard(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      onTap: () {
+        widget.state.setSelectedQuoteId(q.id);
+        widget.onNavigate(AdminScreen.detalleCotizacion);
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  q.folio,
+                  style: AppText.mono(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.navy,
+                  ),
+                ),
+              ),
+              StatusBadge(status: q.status),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      client?.name ?? 'Cliente desconocido',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                        color: AppColors.navy,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${q.date} · ${q.items.length} pieza(s)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              MoneyText(AppState.formatMXN(q.total), fontSize: 15),
+            ],
+          ),
+          if (showProgress) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 4,
+                backgroundColor: AppColors.lightBlue,
+                color: progress >= 1 ? AppColors.done : AppColors.blue,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              progress >= 1
+                  ? 'Liquidada'
+                  : 'Pagado ${AppState.formatMXN(paid)} de ${AppState.formatMXN(q.total)}',
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
+          ],
+        ],
       ),
     );
   }

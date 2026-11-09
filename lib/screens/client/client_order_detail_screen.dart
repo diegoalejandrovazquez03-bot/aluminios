@@ -10,6 +10,7 @@ import '../../widgets/image_viewer.dart';
 import '../../widgets/payment_sheet.dart';
 import '../../widgets/pdf_preview_screen.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/ui.dart';
 
 class ClientOrderDetailScreen extends StatelessWidget {
   final Quote quote;
@@ -34,7 +35,6 @@ class ClientOrderDetailScreen extends StatelessWidget {
     final quote =
         state.quotes.where((q) => q.id == this.quote.id).firstOrNull ??
         this.quote;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final paid = state.paidOf(quote.id);
     final saldo = (quote.total - paid).clamp(0.0, double.infinity);
     final quotePayments = state.payments
@@ -46,16 +46,8 @@ class ClientOrderDetailScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Order Header Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.hairline),
-            ),
+          AppCard(
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Column(
@@ -63,14 +55,13 @@ class ClientOrderDetailScreen extends StatelessWidget {
                     children: [
                       Text(
                         quote.folio,
-                        style: TextStyle(
-                          fontFamily: AppText.monoFamily,
-                          fontFeatures: const [FontFeature.tabularFigures()],
+                        style: AppText.mono(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : AppColors.navy,
+                          color: AppColors.navy,
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         'Fecha de solicitud: ${quote.date}',
                         style: TextStyle(
@@ -92,243 +83,69 @@ class ClientOrderDetailScreen extends StatelessWidget {
             const SizedBox(height: 16),
           ],
 
-          // Items List
-          Text(
-            'PIEZAS INCLUIDAS',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textMuted,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.hairline),
-            ),
-            child: Column(
-              children: [
-                for (int i = 0; i < quote.items.length; i++) ...[
-                  if (i > 0) const Divider(height: 18),
-                  Builder(
-                    builder: (ctx) {
-                      final item = quote.items[i];
-                      final prod = state.products
-                          .where((p) => p.id == item.productId)
-                          .firstOrNull;
-
-                      return Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: AppColors.lightBlue,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              '${item.qty}x',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                                color: AppColors.navy,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  prod?.name ?? 'Pieza',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                Text(
-                                  '${item.width.round()} × ${item.height.round()} cm • ${prod?.material ?? ''}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            AppState.formatMXN(item.subtotal),
-                            style: TextStyle(
-                              fontFamily: AppText.monoFamily,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ],
-            ),
-          ),
+          const SectionHeader('Piezas incluidas'),
+          ListBox(children: [for (final item in quote.items) _itemRow(item)]),
           const SizedBox(height: 16),
 
-          // Financial Summary
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.hairline),
-            ),
+          AppCard(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: Column(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Total del pedido',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    Text(
-                      AppState.formatMXN(quote.total),
-                      style: TextStyle(
-                        fontFamily: AppText.monoFamily,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: isDark ? Colors.white : AppColors.navy,
-                      ),
-                    ),
-                  ],
+                SummaryLine(
+                  'Total del pedido',
+                  AppState.formatMXN(quote.total),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Total abonado',
-                        style: TextStyle(color: AppColors.done),
-                      ),
-                    ),
-                    Text(
-                      AppState.formatMXN(paid),
-                      style: TextStyle(
-                        fontFamily: AppText.monoFamily,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        color: AppColors.done,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                SummaryLine(
+                  'Total abonado',
+                  AppState.formatMXN(paid),
+                  color: AppColors.done,
                 ),
-                const Divider(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Saldo restante',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.pending,
-                      ),
-                    ),
-                    Text(
-                      AppState.formatMXN(saldo),
-                      style: TextStyle(
-                        fontFamily: AppText.monoFamily,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: AppColors.pending,
-                      ),
-                    ),
-                  ],
+                Divider(height: 16, color: AppColors.divider),
+                SummaryLine(
+                  'Saldo restante',
+                  AppState.formatMXN(saldo),
+                  color: saldo > 0 ? AppColors.pendingText : AppColors.done,
+                  strong: true,
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
 
-          // Payments history if any
           if (quotePayments.isNotEmpty) ...[
-            Text(
-              'ABONOS REGISTRADOS',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textMuted,
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 8),
-            for (final p in quotePayments)
-              Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.surfaceDark : Colors.white,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                // Tocar un abono abre su recibo.
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(6),
-                    onTap: () => openReceipt(context, state, p),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${p.date} • ${p.method}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textMuted,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            AppState.formatMXN(p.amount),
-                            style: TextStyle(
-                              fontFamily: AppText.monoFamily,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.done,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.receipt_long_outlined,
-                            size: 16,
-                            color: AppColors.textMuted,
-                          ),
-                        ],
-                      ),
+            const SectionHeader('Abonos registrados'),
+            ListBox(
+              children: [
+                for (final p in quotePayments)
+                  // Tocar un abono abre su recibo.
+                  BoxRow(
+                    title: p.date,
+                    subtitle: p.method,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        MoneyText(
+                          AppState.formatMXN(p.amount),
+                          color: AppColors.done,
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 16,
+                          color: AppColors.textMuted,
+                        ),
+                      ],
                     ),
+                    onTap: () => openReceipt(context, state, p),
                   ),
-                ),
-              ),
+              ],
+            ),
+            const SizedBox(height: 16),
           ],
           if (quote.photos.isNotEmpty) ...[
-            const SizedBox(height: 8),
             _photosSection(context, quote),
+            const SizedBox(height: 16),
           ],
-          const SizedBox(height: 16),
           OutlinedButton.icon(
             icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
             label: const Text('Ver o compartir PDF'),
@@ -336,6 +153,33 @@ class ClientOrderDetailScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// Renglón de una pieza: cantidad, nombre, medidas y subtotal.
+  Widget _itemRow(QuoteItem item) {
+    final prod = state.products
+        .where((p) => p.id == item.productId)
+        .firstOrNull;
+    return BoxRow(
+      leading: Container(
+        width: 36,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.lightBlue,
+          borderRadius: BorderRadius.circular(kRadius),
+        ),
+        child: Text(
+          '${item.qty}x',
+          style: AppText.mono(fontSize: 12, color: AppColors.navy),
+        ),
+      ),
+      title: item.note.isEmpty
+          ? prod?.name ?? 'Pieza'
+          : '${prod?.name ?? 'Pieza'} · ${item.note}',
+      subtitle: AppState.itemDetail(item),
+      trailing: MoneyText(AppState.formatMXN(item.subtotal)),
     );
   }
 
@@ -432,16 +276,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'FOTOS DEL AVANCE',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textMuted,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 8),
+        const SectionHeader('Fotos del avance'),
         GridView.count(
           crossAxisCount: 3,
           crossAxisSpacing: 8,

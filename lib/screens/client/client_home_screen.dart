@@ -10,6 +10,7 @@ import '../../widgets/notices_button.dart';
 import '../../widgets/server_refresh.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 import '../../widgets/visit_status_chip.dart';
 import 'client_order_detail_screen.dart';
 
@@ -65,10 +66,6 @@ class ClientHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final client = state.currentClient;
     final quotes = state.clientQuotes;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fg = isDark ? AppColors.textOnDark : AppColors.carbon;
-    final borderColor = isDark ? AppColors.borderDark : AppColors.border;
-    final surface = isDark ? AppColors.surfaceDark : Colors.white;
 
     // Pedido activo: el más reciente que no esté entregado ni cancelado
     final active = quotes
@@ -109,28 +106,15 @@ class ClientHomeScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w600,
-                color: fg,
+                color: AppColors.navy,
               ),
             ),
             const SizedBox(height: 18),
 
             if (active != null)
-              _activeOrderCard(
-                context,
-                active,
-                isDark,
-                fg,
-                surface,
-                borderColor,
-              )
+              _activeOrderCard(context, active)
             else
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: surface,
-                  borderRadius: BorderRadius.circular(kRadius),
-                  border: Border.all(color: borderColor),
-                ),
+              AppCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -139,7 +123,7 @@ class ClientHomeScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: fg,
+                        color: AppColors.navy,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -181,63 +165,19 @@ class ClientHomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            ..._visitsSection(context, fg, surface, borderColor, isDark),
+            ..._visitsSection(),
 
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Pedidos anteriores',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: fg,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => onNavigate(ClientScreen.pedidos),
-                  child: const Text(
-                    'Ver todos',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                ),
-              ],
+            SectionHeader(
+              'Pedidos anteriores',
+              action: 'Ver todos',
+              onAction: () => onNavigate(ClientScreen.pedidos),
             ),
-            const SizedBox(height: 4),
-            Container(
-              decoration: BoxDecoration(
-                color: surface,
-                borderRadius: BorderRadius.circular(kRadius),
-                border: Border.all(color: borderColor),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: others.isEmpty
-                  ? Padding(
-                      padding: EdgeInsets.all(14),
-                      child: Text(
-                        'Aún no tienes otros pedidos',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    )
-                  : Column(
-                      children: [
-                        for (int i = 0; i < others.length; i++) ...[
-                          if (i > 0)
-                            Divider(
-                              height: 1,
-                              thickness: 1,
-                              color: isDark
-                                  ? AppColors.borderDark
-                                  : AppColors.divider,
-                            ),
-                          _orderRow(context, others[i], fg),
-                        ],
-                      ],
-                    ),
+            ListBox(
+              children: [
+                if (others.isEmpty)
+                  const BoxRow(title: 'Aún no tienes otros pedidos'),
+                for (final q in others) _orderRow(context, q),
+              ],
             ),
           ],
         ),
@@ -247,13 +187,7 @@ class ClientHomeScreen extends StatelessWidget {
 
   /// "Mis visitas": las próximas (de la más cercana a la más lejana) y las
   /// 3 realizadas más recientes, con su estado.
-  List<Widget> _visitsSection(
-    BuildContext context,
-    Color fg,
-    Color surface,
-    Color borderColor,
-    bool isDark,
-  ) {
+  List<Widget> _visitsSection() {
     final clientId = state.session?.clientId;
     final mine = state.visits.where((v) => v.clientId == clientId).toList();
     final upcoming = mine.where((v) => !v.isDone).toList()
@@ -267,97 +201,29 @@ class ClientHomeScreen extends StatelessWidget {
     final shown = [...upcoming, ...done.take(3)];
 
     return [
-      Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Mis visitas',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: fg,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => onNavigate(ClientScreen.catalogo),
-            child: const Text('Solicitar', style: TextStyle(fontSize: 13)),
-          ),
-        ],
+      SectionHeader(
+        'Mis visitas',
+        action: 'Solicitar',
+        onAction: () => onNavigate(ClientScreen.catalogo),
       ),
-      const SizedBox(height: 4),
-      Container(
-        decoration: BoxDecoration(
-          color: surface,
-          borderRadius: BorderRadius.circular(kRadius),
-          border: Border.all(color: borderColor),
-        ),
-        child: shown.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.all(14),
-                child: Text(
-                  'No tienes visitas. Puedes solicitar una visita técnica desde el catálogo.',
-                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
-                ),
-              )
-            : Column(
-                children: [
-                  for (int i = 0; i < shown.length; i++) ...[
-                    if (i > 0)
-                      Divider(
-                        height: 1,
-                        thickness: 1,
-                        color: AppColors.divider,
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  shown[i].type,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: fg,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${_visitDate(shown[i].date)} · ${shown[i].start}–${shown[i].end}',
-                                  style: AppText.mono(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w400,
-                                    color: AppColors.textMuted,
-                                  ),
-                                ),
-                                if (shown[i].place.isNotEmpty)
-                                  Text(
-                                    shown[i].place,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textMuted,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          VisitStatusChip(visit: shown[i]),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+      ListBox(
+        children: [
+          if (shown.isEmpty)
+            const BoxRow(
+              title: 'No tienes visitas',
+              subtitle:
+                  'Puedes solicitar una visita técnica desde el catálogo.',
+            ),
+          for (final v in shown)
+            BoxRow(
+              title: v.type,
+              subtitle: [
+                '${_visitDate(v.date)} · ${v.start}–${v.end}',
+                if (v.place.isNotEmpty) v.place,
+              ].join('\n'),
+              trailing: VisitStatusChip(visit: v),
+            ),
+        ],
       ),
       const SizedBox(height: 24),
     ];
@@ -369,216 +235,153 @@ class ClientHomeScreen extends StatelessWidget {
     return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
   }
 
-  Widget _activeOrderCard(
-    BuildContext context,
-    Quote q,
-    bool isDark,
-    Color fg,
-    Color surface,
-    Color borderColor,
-  ) {
+  Widget _activeOrderCard(BuildContext context, Quote q) {
     final paid = state.paidOf(q.id);
     final rem = (q.total - paid).clamp(0, double.infinity);
     final progress = q.total > 0 ? (paid / q.total).clamp(0.0, 1.0) : 0.0;
     final step = _stepOf(q.status);
+    final fg = AppColors.navy;
 
-    return InkWell(
+    return AppCard(
       onTap: () => _openOrder(context, q),
-      borderRadius: BorderRadius.circular(kRadius),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: surface,
-          borderRadius: BorderRadius.circular(kRadius),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Pedido activo',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textMuted,
-                        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Pedido activo',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textMuted,
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _orderTitle(q),
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: fg,
-                        ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _orderTitle(q),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: fg,
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${q.folio} · ${q.date}',
-                        style: AppText.mono(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                StatusBadge(status: q.status),
-              ],
-            ),
-            if (step >= 0) ...[
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  for (int i = 0; i < _steps.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 6),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: i < step
-                                  ? fg
-                                  : i == step
-                                  ? AppColors.accent
-                                  : (isDark
-                                        ? AppColors.borderDark
-                                        : AppColors.divider),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _steps[i],
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: i == step
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                              color: i == step
-                                  ? AppColors.accent
-                                  : AppColors.textMuted,
-                            ),
-                          ),
-                        ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${q.folio} · ${q.date}',
+                      style: AppText.mono(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: AppColors.textMuted,
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
+              const SizedBox(width: 8),
+              StatusBadge(status: q.status),
             ],
-            const SizedBox(height: 14),
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: isDark ? AppColors.borderDark : AppColors.divider,
-            ),
-            const SizedBox(height: 14),
+          ),
+          if (step >= 0) ...[
+            const SizedBox(height: 16),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
               children: [
-                Expanded(
-                  child: Text(
-                    'Saldo pendiente',
-                    style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                for (int i = 0; i < _steps.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: i < step
+                                ? fg
+                                : i == step
+                                ? AppColors.blue
+                                : AppColors.divider,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _steps[i],
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: i == step
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                            color: i == step
+                                ? AppColors.blue
+                                : AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Text(
-                  AppState.formatMXN(rem),
-                  style: AppText.mono(fontSize: 22, color: fg),
-                ),
+                ],
               ],
             ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 6,
-                backgroundColor: isDark
-                    ? AppColors.borderDark
-                    : AppColors.divider,
-                valueColor: AlwaysStoppedAnimation(fg),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Pagado ${AppState.formatMXN(paid)} de ${AppState.formatMXN(q.total)}',
-              style: AppText.mono(
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-                color: AppColors.textMuted,
-              ),
-            ),
           ],
-        ),
+          const SizedBox(height: 14),
+          Divider(height: 1, thickness: 1, color: AppColors.divider),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Expanded(
+                child: Text(
+                  'Saldo pendiente',
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                ),
+              ),
+              MoneyText(AppState.formatMXN(rem), fontSize: 22),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: AppColors.divider,
+              valueColor: AlwaysStoppedAnimation(fg),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Pagado ${AppState.formatMXN(paid)} de ${AppState.formatMXN(q.total)}',
+            style: AppText.mono(
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+              color: AppColors.textMuted,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _orderRow(BuildContext context, Quote q, Color fg) {
-    return InkWell(
+  Widget _orderRow(BuildContext context, Quote q) {
+    return BoxRow(
       onTap: () => _openOrder(context, q),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: StatusBadge.dotColor(q.status),
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _orderTitle(q),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: fg,
-                    ),
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    '${q.folio} · ${q.status.label}',
-                    style: AppText.mono(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: AppColors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              AppState.formatMXN(q.total),
-              style: AppText.mono(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: fg,
-              ),
-            ),
-          ],
+      leading: Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
+          color: StatusBadge.dotColor(q.status),
+          shape: BoxShape.circle,
         ),
       ),
+      title: _orderTitle(q),
+      subtitle: '${q.folio} · ${q.status.label}',
+      trailing: MoneyText(AppState.formatMXN(q.total)),
     );
   }
 }

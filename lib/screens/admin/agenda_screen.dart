@@ -8,6 +8,7 @@ import '../../state/app_state.dart';
 import '../../widgets/sheet_message.dart';
 import '../../widgets/server_refresh.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 import '../../widgets/visit_status_chip.dart';
 
 class AgendaScreen extends StatefulWidget {
@@ -83,8 +84,6 @@ class _AgendaScreenState extends State<AgendaScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
-          final isDark = Theme.of(ctx).brightness == Brightness.dark;
-
           return Container(
             padding: EdgeInsets.only(
               left: 20,
@@ -93,7 +92,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
             ),
             decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
+              color: AppColors.card,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(10),
               ),
@@ -103,24 +102,8 @@ class _AgendaScreenState extends State<AgendaScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Agendar Visita',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.navy,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
+                  const SheetHeader('Agendar visita'),
+                  const SizedBox(height: 6),
 
                   // Fecha: el selector no permite días anteriores a hoy.
                   OutlinedButton.icon(
@@ -268,8 +251,6 @@ class _AgendaScreenState extends State<AgendaScreen> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final selectedIso = _formatIso(_selectedDay);
     final dayVisits = state.visits.where((v) => v.date == selectedIso).toList()
       ..sort((a, b) => a.start.compareTo(b.start));
@@ -302,12 +283,8 @@ class _AgendaScreenState extends State<AgendaScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             // Monthly Calendar Card
-            Container(
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.surfaceDark : Colors.white,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.hairline),
-              ),
+            AppCard(
+              padding: EdgeInsets.zero,
               child: TableCalendar(
                 firstDay: DateTime.utc(2025, 1, 1),
                 lastDay: DateTime.utc(2028, 12, 31),
@@ -315,12 +292,16 @@ class _AgendaScreenState extends State<AgendaScreen> {
                 currentDay: DateTime.now(),
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 calendarFormat: CalendarFormat.month,
-                headerStyle: const HeaderStyle(
+                // Solo deslizar a los lados (cambiar de mes); hacia arriba o abajo
+                // desplaza la pantalla.
+                availableGestures: AvailableGestures.horizontalSwipe,
+                headerStyle: HeaderStyle(
                   formatButtonVisible: false,
                   titleCentered: true,
                   titleTextStyle: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 16,
+                    color: AppColors.navy,
                   ),
                 ),
                 calendarStyle: CalendarStyle(
@@ -376,41 +357,16 @@ class _AgendaScreenState extends State<AgendaScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Day's agenda
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Text(
-                    'VISITAS DEL DÍA (${_selectedDay.day}/${_selectedDay.month})',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textMuted,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${dayVisits.length} agendada(s)',
-                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
-                ),
-              ],
+            SectionHeader(
+              'Visitas del ${_longDate(selectedIso)} · ${dayVisits.length}',
             ),
-            const SizedBox(height: 8),
-
             if (dayVisits.isEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                alignment: Alignment.center,
-                child: Text(
-                  'Sin visitas agendadas para este día',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-                ),
+              const EmptyState(
+                icon: Icons.event_available_outlined,
+                title: 'Sin visitas agendadas para este día',
               )
             else
-              for (final v in dayVisits) _visitCard(v, isDark),
+              for (final v in dayVisits) _visitCard(v),
             const SizedBox(height: 12),
 
             ElevatedButton.icon(
@@ -429,16 +385,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
             const SizedBox(height: 28),
 
             // Historial: próximas (de hoy en adelante) y realizadas (ya pasaron).
-            Text(
-              'HISTORIAL DE VISITAS',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textMuted,
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 8),
+            const SectionHeader('Historial de visitas'),
             SegmentedButton<bool>(
               segments: [
                 ButtonSegment(
@@ -458,18 +405,14 @@ class _AgendaScreenState extends State<AgendaScreen> {
             ),
             const SizedBox(height: 12),
             if (history.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Text(
-                  _showPast
-                      ? 'Aún no hay visitas realizadas'
-                      : 'No hay visitas próximas agendadas',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-                ),
+              EmptyState(
+                icon: _showPast ? Icons.history : Icons.schedule,
+                title: _showPast
+                    ? 'Aún no hay visitas realizadas'
+                    : 'No hay visitas próximas agendadas',
               )
             else
-              for (final v in history) _visitCard(v, isDark, showDate: true),
+              for (final v in history) _visitCard(v, showDate: true),
           ],
         ),
       ),
@@ -477,7 +420,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
   }
 
   /// Tarjeta de una visita. Con [showDate] muestra la fecha completa (historial).
-  Widget _visitCard(Visit v, bool isDark, {bool showDate = false}) {
+  Widget _visitCard(Visit v, {bool showDate = false}) {
     final state = widget.state;
     final client = state.clients.where((c) => c.id == v.clientId).firstOrNull;
     final done = v.isDone;
@@ -489,14 +432,9 @@ class _AgendaScreenState extends State<AgendaScreen> {
       typeColor = AppColors.pending;
     }
 
-    return Container(
+    return AppCard(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : Colors.white,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.hairline),
-      ),
       child: Row(
         children: [
           Container(

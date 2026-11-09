@@ -423,6 +423,19 @@ class AppState extends ChangeNotifier {
     return formatter.format(cents / 100);
   }
 
+  /// Área en m² con dos decimales, p. ej. "1.20 m²".
+  static String formatArea(double m2) => '${m2.toStringAsFixed(2)} m²';
+
+  /// Descripción de una pieza: medidas, área y precio (por m² o, en las
+  /// cotizaciones anteriores al cobro por m², por pieza).
+  static String itemDetail(QuoteItem item) {
+    final size = '${item.width.round()} × ${item.height.round()} cm';
+    final price = item.pricePerM2 == null
+        ? '${formatMXN(item.unitPrice)} c/u'
+        : '${formatArea(item.area)} × ${formatMXN(item.pricePerM2!)}';
+    return '$size · $price';
+  }
+
   static String today() {
     final now = DateTime.now();
     return "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
@@ -451,7 +464,7 @@ class AppState extends ChangeNotifier {
         id: 1,
         name: 'Ventana corrediza',
         material: 'Aluminio natural',
-        price: 1200,
+        price: Product.defaultPricePerM2,
         margin: 24,
         img: imgs[0],
         width: 120,
@@ -462,7 +475,7 @@ class AppState extends ChangeNotifier {
         id: 2,
         name: 'Puerta de aluminio',
         material: 'Cristal 6 mm',
-        price: 2500,
+        price: Product.defaultPricePerM2,
         margin: 28,
         img: imgs[1],
         width: 90,
@@ -473,7 +486,7 @@ class AppState extends ChangeNotifier {
         id: 3,
         name: 'Cancel de baño',
         material: 'Aluminio blanco',
-        price: 1800,
+        price: Product.defaultPricePerM2,
         margin: 22,
         img: imgs[2],
         width: 80,
@@ -484,7 +497,7 @@ class AppState extends ChangeNotifier {
         id: 4,
         name: 'Mosquitero',
         material: 'Aluminio natural',
-        price: 450,
+        price: Product.defaultPricePerM2,
         margin: 31,
         img: imgs[3],
         width: 100,
@@ -495,7 +508,7 @@ class AppState extends ChangeNotifier {
         id: 5,
         name: 'Ventana "Pro-Max"',
         material: 'Aluminio anodizado',
-        price: 1650,
+        price: Product.defaultPricePerM2,
         margin: 38,
         img: imgs[0],
         width: 150,
@@ -1261,7 +1274,7 @@ class AppState extends ChangeNotifier {
       'id': p.id,
       'name': p.name,
       'category': p.material,
-      'unit': 'pieza',
+      'unit': 'm2',
       'price': p.price,
       'status': 'Activo',
     });
@@ -1279,7 +1292,7 @@ class AppState extends ChangeNotifier {
           'id': p.id,
           'name': p.name,
           'category': p.material,
-          'unit': 'pieza',
+          'unit': 'm2',
           'price': p.price,
           'status': 'Activo',
         },
@@ -1325,18 +1338,7 @@ class AppState extends ChangeNotifier {
       'date': q.date,
       'status': q.status.label,
       'discount': q.discount,
-      'items': q.items
-          .map(
-            (item) => {
-              'productId': item.productId,
-              'width': item.width,
-              'height': item.height,
-              'depth': item.depth,
-              'qty': item.qty,
-              'unitPrice': item.unitPrice,
-            },
-          )
-          .toList(),
+      'items': q.items.map((item) => item.toMap()).toList(),
     });
     _selectedQuoteId = q.id;
     _quoteFilter = 'Todas';

@@ -19,6 +19,7 @@ import '../../widgets/payment_sheet.dart';
 import '../../widgets/pdf_preview_screen.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 import '../../widgets/whatsapp_draft_sheet.dart';
 
 class QuoteDetailScreen extends StatelessWidget {
@@ -117,36 +118,18 @@ class QuoteDetailScreen extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-
         return Container(
           padding: const EdgeInsets.all(24),
           height: MediaQuery.of(ctx).size.height * 0.8,
           decoration: BoxDecoration(
-            color: isDark ? AppColors.surfaceDark : Colors.white,
+            color: AppColors.card,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Cotización ${quote.folio}',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.navy,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const Divider(),
+              SheetHeader('Cotización ${quote.folio}'),
+              Divider(color: AppColors.divider),
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
@@ -154,13 +137,14 @@ class QuoteDetailScreen extends StatelessWidget {
                     children: [
                       Text(
                         state.settings.bizName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 16,
+                          color: AppColors.navy,
                         ),
                       ),
                       Text(
-                        '${state.settings.bizAddress} • Tel: ${state.settings.bizPhone}',
+                        '${state.settings.bizAddress} · Tel: ${state.settings.bizPhone}',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
@@ -169,120 +153,51 @@ class QuoteDetailScreen extends StatelessWidget {
                       const SizedBox(height: 16),
                       Text(
                         'Cliente: ${client?.name ?? ''}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.navy,
+                        ),
                       ),
                       Text(
-                        'Fecha: ${quote.date}  •  Vigencia: 15 días',
+                        'Fecha: ${quote.date} · Vigencia: 15 días',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Text(
-                        'DESGLOSE DE PIEZAS',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                          color: AppColors.textMuted,
+                      const SectionHeader('Desglose de piezas'),
+                      for (final it in quote.items)
+                        SummaryLine(
+                          '${it.qty}x ${it.width.round()}×${it.height.round()} cm',
+                          AppState.formatMXN(it.subtotal),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      for (final it in quote.items) ...[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${it.qty}x ${it.width.round()}×${it.height.round()} cm',
-                            ),
-                            Text(
-                              AppState.formatMXN(it.subtotal),
-                              style: TextStyle(
-                                fontFamily: AppText.monoFamily,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                      ],
-                      const Divider(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Subtotal:'),
-                          Text(AppState.formatMXN(quote.subtotal)),
-                        ],
+                      Divider(height: 24, color: AppColors.divider),
+                      SummaryLine(
+                        'Subtotal',
+                        AppState.formatMXN(quote.subtotal),
                       ),
                       if (quote.discount > 0)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Descuento (${quote.discount.round()}%):'),
-                            Text(
-                              '- ${AppState.formatMXN(quote.discountAmount)}',
-                              style: TextStyle(color: AppColors.cancelled),
-                            ),
-                          ],
+                        SummaryLine(
+                          'Descuento (${quote.discount.round()}%)',
+                          '- ${AppState.formatMXN(quote.discountAmount)}',
+                          color: AppColors.cancelled,
                         ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Total:',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            AppState.formatMXN(quote.total),
-                            style: TextStyle(
-                              fontFamily: AppText.monoFamily,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                      SummaryLine(
+                        'Total',
+                        AppState.formatMXN(quote.total),
+                        strong: true,
                       ),
                       if (paid > 0) ...[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Anticipos pagados:'),
-                            Text(
-                              AppState.formatMXN(paid),
-                              style: TextStyle(
-                                fontFamily: AppText.monoFamily,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
-                                color: AppColors.done,
-                              ),
-                            ),
-                          ],
+                        SummaryLine(
+                          'Anticipos pagados',
+                          AppState.formatMXN(paid),
+                          color: AppColors.done,
                         ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Saldo restante:',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            Text(
-                              AppState.formatMXN(saldo),
-                              style: TextStyle(
-                                fontFamily: AppText.monoFamily,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.pending,
-                              ),
-                            ),
-                          ],
+                        SummaryLine(
+                          'Saldo restante',
+                          AppState.formatMXN(saldo),
+                          color: AppColors.pendingText,
                         ),
                       ],
                     ],
@@ -349,14 +264,18 @@ class QuoteDetailScreen extends StatelessWidget {
     if (quote == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Detalle')),
-        body: const Center(child: Text('No hay cotización seleccionada')),
+        body: const Center(
+          child: EmptyState(
+            icon: Icons.receipt_long_outlined,
+            title: 'No hay cotización seleccionada',
+          ),
+        ),
       );
     }
 
     final client = state.clients
         .where((c) => c.id == quote.clientId)
         .firstOrNull;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final paid = state.paidOf(quote.id);
     final saldo = (quote.total - paid).clamp(0.0, double.infinity);
 
@@ -365,16 +284,9 @@ class QuoteDetailScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Header card with folio & status
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.hairline),
-            ),
+          // Folio, fecha y estado (tocar el estado lo cambia).
+          AppCard(
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Column(
@@ -382,12 +294,10 @@ class QuoteDetailScreen extends StatelessWidget {
                     children: [
                       Text(
                         quote.folio,
-                        style: TextStyle(
-                          fontFamily: AppText.monoFamily,
-                          fontFeatures: const [FontFeature.tabularFigures()],
+                        style: AppText.mono(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : AppColors.navy,
+                          color: AppColors.navy,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -401,30 +311,29 @@ class QuoteDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                GestureDetector(
+                InkWell(
+                  borderRadius: BorderRadius.circular(kRadius),
                   onTap: () => _showStatusPicker(context, quote),
-                  child: Row(
-                    children: [
-                      StatusBadge(status: quote.status),
-                      const SizedBox(width: 4),
-                      Icon(Icons.arrow_drop_down, color: AppColors.textMuted),
-                    ],
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Row(
+                      children: [
+                        StatusBadge(status: quote.status),
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_drop_down, color: AppColors.textMuted),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-          // Client Contact Card
-          if (client != null)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.surfaceDark : Colors.white,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.hairline),
-              ),
+          // Contacto del cliente
+          if (client != null) ...[
+            AppCard(
+              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
               child: Row(
                 children: [
                   AvatarWidget(name: client.name, size: 44),
@@ -435,10 +344,12 @@ class QuoteDetailScreen extends StatelessWidget {
                       children: [
                         Text(
                           client.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                             fontSize: 14,
-                            color: isDark ? Colors.white : AppColors.navy,
+                            color: AppColors.navy,
                           ),
                         ),
                         Text(
@@ -452,11 +363,13 @@ class QuoteDetailScreen extends StatelessWidget {
                     ),
                   ),
                   IconButton.filledTonal(
+                    tooltip: 'Llamar',
                     icon: const Icon(Icons.phone, size: 18),
                     onPressed: () => ExternalLinks.call(context, client.phone),
                   ),
                   const SizedBox(width: 6),
                   IconButton.filled(
+                    tooltip: 'WhatsApp',
                     style: IconButton.styleFrom(
                       backgroundColor: AppColors.done,
                     ),
@@ -467,216 +380,42 @@ class QuoteDetailScreen extends StatelessWidget {
                 ],
               ),
             ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 20),
+          ],
 
-          // Products Breakdown Table
-          Text(
-            'PRODUCTOS COTIZADOS',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textMuted,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.hairline),
-            ),
+          const SectionHeader('Productos cotizados'),
+          ListBox(children: [for (final item in quote.items) _itemRow(item)]),
+          const SizedBox(height: 12),
+
+          // Resumen de dinero
+          AppCard(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: Column(
               children: [
-                for (int i = 0; i < quote.items.length; i++) ...[
-                  if (i > 0) const Divider(height: 20),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.lightBlue,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '${quote.items[i].qty}x',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                            color: AppColors.navy,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              state.products
-                                      .where(
-                                        (p) => p.id == quote.items[i].productId,
-                                      )
-                                      .firstOrNull
-                                      ?.name ??
-                                  'Pieza de aluminio',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                            Text(
-                              '${quote.items[i].width.round()} × ${quote.items[i].height.round()} cm  •  ${AppState.formatMXN(quote.items[i].unitPrice)} c/u',
-                              style: TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        AppState.formatMXN(quote.items[i].subtotal),
-                        style: TextStyle(
-                          fontFamily: AppText.monoFamily,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
+                SummaryLine('Subtotal', AppState.formatMXN(quote.subtotal)),
+                if (quote.discount > 0)
+                  SummaryLine(
+                    'Descuento (${quote.discount.round()}%)',
+                    '- ${AppState.formatMXN(quote.discountAmount)}',
+                    color: AppColors.cancelled,
                   ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Financial Summary
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.hairline),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Subtotal',
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 13,
-                      ),
-                    ),
-                    Text(
-                      AppState.formatMXN(quote.subtotal),
-                      style: TextStyle(
-                        fontFamily: AppText.monoFamily,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                if (quote.discount > 0) ...[
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Descuento (${quote.discount.round()}%)',
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 13,
-                        ),
-                      ),
-                      Text(
-                        '- ${AppState.formatMXN(quote.discountAmount)}',
-                        style: TextStyle(
-                          color: AppColors.cancelled,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                const Divider(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Total Cotizado',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      AppState.formatMXN(quote.total),
-                      style: TextStyle(
-                        fontFamily: AppText.monoFamily,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        fontWeight: FontWeight.w600,
-                        fontSize: 17,
-                        color: isDark ? Colors.white : AppColors.navy,
-                      ),
-                    ),
-                  ],
+                Divider(height: 18, color: AppColors.divider),
+                SummaryLine(
+                  'Total cotizado',
+                  AppState.formatMXN(quote.total),
+                  strong: true,
                 ),
                 if (paid > 0) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Anticipos pagados',
-                          style: TextStyle(color: AppColors.done, fontSize: 13),
-                        ),
-                      ),
-                      Text(
-                        AppState.formatMXN(paid),
-                        style: TextStyle(
-                          fontFamily: AppText.monoFamily,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          color: AppColors.done,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Saldo pendiente',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.pending,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        AppState.formatMXN(saldo),
-                        style: TextStyle(
-                          fontFamily: AppText.monoFamily,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.pending,
-                        ),
-                      ),
-                    ],
+                  SummaryLine(
+                    'Anticipos pagados',
+                    AppState.formatMXN(paid),
+                    color: AppColors.done,
+                  ),
+                  SummaryLine(
+                    'Saldo pendiente',
+                    AppState.formatMXN(saldo),
+                    color: AppColors.pendingText,
                   ),
                 ],
               ],
@@ -691,7 +430,6 @@ class QuoteDetailScreen extends StatelessWidget {
           _progressPhotos(context, quote),
           const SizedBox(height: 20),
 
-          // Export and Share Button
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -706,6 +444,32 @@ class QuoteDetailScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// Renglón de una pieza: cantidad, producto, medidas, precio unitario y
+  /// subtotal.
+  Widget _itemRow(QuoteItem item) {
+    final name =
+        state.products.where((p) => p.id == item.productId).firstOrNull?.name ??
+        'Pieza de aluminio';
+    return BoxRow(
+      leading: Container(
+        width: 36,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.lightBlue,
+          borderRadius: BorderRadius.circular(kRadius),
+        ),
+        child: Text(
+          '${item.qty}x',
+          style: AppText.mono(fontSize: 12, color: AppColors.navy),
+        ),
+      ),
+      title: item.note.isEmpty ? name : '$name · ${item.note}',
+      subtitle: AppState.itemDetail(item),
+      trailing: MoneyText(AppState.formatMXN(item.subtotal)),
     );
   }
 
@@ -795,7 +559,6 @@ class QuoteDetailScreen extends StatelessWidget {
     double paid,
     double saldo,
   ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final payments = state.payments
         .where((p) => p.quoteId == quote.id)
         .toList();
@@ -804,27 +567,11 @@ class QuoteDetailScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'PAGOS',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textMuted,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-            if (canPay)
-              TextButton.icon(
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Registrar abono'),
-                onPressed: () =>
-                    showPaymentSheet(context, state, quoteId: quote.id),
-              ),
-          ],
+        SectionHeader(
+          'Pagos',
+          action: canPay ? 'Registrar abono' : null,
+          actionIcon: Icons.add,
+          onAction: () => showPaymentSheet(context, state, quoteId: quote.id),
         ),
         if (payments.isEmpty)
           Text(
@@ -832,61 +579,35 @@ class QuoteDetailScreen extends StatelessWidget {
             style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           )
         else
-          Container(
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.hairline),
-            ),
-            clipBehavior: Clip.antiAlias,
-            // Material transparente: el efecto al tocar se ve sobre el fondo.
-            child: Material(
-              type: MaterialType.transparency,
-              child: Column(
-                children: [
-                  for (int i = 0; i < payments.length; i++) ...[
-                    if (i > 0) const Divider(height: 1),
-                    ListTile(
-                      dense: true,
-                      leading: Icon(
-                        Icons.check_circle_rounded,
-                        color: AppColors.done,
-                        size: 20,
+          ListBox(
+            children: [
+              for (final p in payments)
+                BoxRow(
+                  leading: IconBadge(
+                    Icons.check_circle_rounded,
+                    color: AppColors.done,
+                    background: AppColors.completedBg,
+                  ),
+                  title: AppState.formatMXN(p.amount),
+                  monoTitle: true,
+                  subtitle: '${p.date} · ${p.method}',
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Recibo',
+                        style: TextStyle(fontSize: 12, color: AppColors.blue),
                       ),
-                      title: Text(
-                        AppState.formatMXN(payments[i].amount),
-                        style: TextStyle(
-                          fontFamily: AppText.monoFamily,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: AppColors.blue,
                       ),
-                      subtitle: Text(
-                        '${payments[i].date} • ${payments[i].method}',
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Recibo',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.blue,
-                            ),
-                          ),
-                          Icon(
-                            Icons.chevron_right,
-                            size: 18,
-                            color: AppColors.blue,
-                          ),
-                        ],
-                      ),
-                      onTap: () => openReceipt(context, state, payments[i]),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+                    ],
+                  ),
+                  onTap: () => openReceipt(context, state, p),
+                ),
+            ],
           ),
         if (canPay && client != null && client.phone.isNotEmpty) ...[
           const SizedBox(height: 10),
@@ -976,25 +697,11 @@ class QuoteDetailScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'FOTOS DEL AVANCE',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textMuted,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-            TextButton.icon(
-              icon: const Icon(Icons.add_a_photo_outlined, size: 18),
-              label: const Text('Agregar'),
-              onPressed: add,
-            ),
-          ],
+        SectionHeader(
+          'Fotos del avance',
+          action: 'Agregar',
+          actionIcon: Icons.add_a_photo_outlined,
+          onAction: add,
         ),
         if (quote.photos.isEmpty)
           Text(

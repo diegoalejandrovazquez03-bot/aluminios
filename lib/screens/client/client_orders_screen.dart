@@ -4,11 +4,13 @@ import '../../core/theme.dart';
 
 import '../../core/constants.dart';
 import '../../core/app_routes.dart';
+import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/notices_button.dart';
 import '../../widgets/server_refresh.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 import 'client_order_detail_screen.dart';
 
 class ClientOrdersScreen extends StatelessWidget {
@@ -24,7 +26,6 @@ class ClientOrdersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final quotes = state.clientQuotes;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: TopBar(
@@ -39,31 +40,14 @@ class ClientOrdersScreen extends StatelessWidget {
         child: quotes.isEmpty
             ? ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(top: 140),
+                padding: const EdgeInsets.only(top: 80),
                 children: [
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.receipt_long_outlined,
-                        size: 54,
-                        color: AppColors.textMuted,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No tienes pedidos registrados',
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () =>
-                            onNavigate(ClientScreen.catalogo), // Catálogo
-                        child: const Text('Explorar Catálogo'),
-                      ),
-                    ],
+                  EmptyState(
+                    icon: Icons.receipt_long_outlined,
+                    title: 'No tienes pedidos registrados',
+                    message: 'Revisa el catálogo y pide tu cotización.',
+                    actionLabel: 'Explorar catálogo',
+                    onAction: () => onNavigate(ClientScreen.catalogo),
                   ),
                 ],
               )
@@ -71,135 +55,60 @@ class ClientOrdersScreen extends StatelessWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 itemCount: quotes.length,
-                itemBuilder: (context, i) {
-                  final q = quotes[i];
-                  final paid = state.paidOf(q.id);
-                  final saldo = (q.total - paid).clamp(0.0, double.infinity);
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.surfaceDark : Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.hairline),
-                    ),
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(6),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ClientOrderDetailScreen(
-                                quote: q,
-                                state: state,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    q.folio,
-                                    style: TextStyle(
-                                      fontFamily: AppText.monoFamily,
-                                      fontFeatures: const [
-                                        FontFeature.tabularFigures(),
-                                      ],
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark
-                                          ? Colors.white
-                                          : AppColors.navy,
-                                    ),
-                                  ),
-                                  StatusBadge(status: q.status),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Fecha: ${q.date} • ${q.items.length} pieza(s)',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textMuted,
-                                ),
-                              ),
-                              const Divider(height: 20),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Saldo restante',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: AppColors.textMuted,
-                                        ),
-                                      ),
-                                      Text(
-                                        AppState.formatMXN(saldo),
-                                        style: TextStyle(
-                                          fontFamily: AppText.monoFamily,
-                                          fontFeatures: const [
-                                            FontFeature.tabularFigures(),
-                                          ],
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                          color: saldo > 0
-                                              ? AppColors.pending
-                                              : AppColors.done,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        'Total pedido',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: AppColors.textMuted,
-                                        ),
-                                      ),
-                                      Text(
-                                        AppState.formatMXN(q.total),
-                                        style: TextStyle(
-                                          fontFamily: AppText.monoFamily,
-                                          fontFeatures: const [
-                                            FontFeature.tabularFigures(),
-                                          ],
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 16,
-                                          color: isDark
-                                              ? Colors.white
-                                              : AppColors.navy,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
+                itemBuilder: (context, i) => _orderCard(context, quotes[i]),
               ),
+      ),
+    );
+  }
+
+  /// Tarjeta de un pedido: folio y estado arriba; fecha, piezas, saldo
+  /// restante y total abajo.
+  Widget _orderCard(BuildContext context, Quote q) {
+    final paid = state.paidOf(q.id);
+    final saldo = (q.total - paid).clamp(0.0, double.infinity);
+
+    return AppCard(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ClientOrderDetailScreen(quote: q, state: state),
+          ),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  q.folio,
+                  style: AppText.mono(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.navy,
+                  ),
+                ),
+              ),
+              StatusBadge(status: q.status),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${q.date} · ${q.items.length} pieza(s)',
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          ),
+          Divider(height: 20, color: AppColors.divider),
+          SummaryLine(
+            'Saldo restante',
+            AppState.formatMXN(saldo),
+            color: saldo > 0 ? AppColors.pendingText : AppColors.done,
+          ),
+          SummaryLine('Total del pedido', AppState.formatMXN(q.total)),
+        ],
       ),
     );
   }

@@ -12,6 +12,7 @@ import '../../widgets/avatar_widget.dart';
 import '../../widgets/profile_photo_options.dart';
 import '../../widgets/sheet_message.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 
 /// Perfil del cliente: sus datos, su foto, su contraseña y preferencias.
 /// No incluye nada de la configuración del taller (eso es solo del dueño).
@@ -149,13 +150,18 @@ class ClientProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          _sectionTitle('MIS DATOS'),
-          _box([
-            _infoRow('Nombre', name),
-            _infoRow('Teléfono', phone.isEmpty ? '—' : phone, mono: true),
-            _infoRow('Correo', email.isEmpty ? '—' : email),
-            _infoRow('Dirección', address.isEmpty ? 'Sin dirección' : address),
-          ]),
+          const SectionHeader('Mis datos'),
+          ListBox(
+            children: [
+              _infoRow('Nombre', name),
+              _infoRow('Teléfono', phone.isEmpty ? '—' : phone, mono: true),
+              _infoRow('Correo', email.isEmpty ? '—' : email),
+              _infoRow(
+                'Dirección',
+                address.isEmpty ? 'Sin dirección' : address,
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
             icon: const Icon(Icons.edit_outlined, size: 18),
@@ -166,63 +172,74 @@ class ClientProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          _sectionTitle('SEGURIDAD Y PREFERENCIAS'),
-          _box([
-            _actionRow(
-              icon: Icons.lock_outline,
-              title: 'Cambiar contraseña',
-              onTap: account == null ? null : () => _openPassword(context),
-            ),
-            SwitchListTile.adaptive(
-              secondary: Icon(Icons.dark_mode_outlined, color: AppColors.navy),
-              title: Text(
-                'Modo oscuro',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+          const SectionHeader('Seguridad y preferencias'),
+          ListBox(
+            children: [
+              _actionRow(
+                icon: Icons.lock_outline,
+                title: 'Cambiar contraseña',
+                onTap: account == null ? null : () => _openPassword(context),
+              ),
+              SwitchListTile.adaptive(
+                secondary: Icon(
+                  Icons.dark_mode_outlined,
                   color: AppColors.navy,
                 ),
+                title: Text(
+                  'Modo oscuro',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.navy,
+                  ),
+                ),
+                value: state.settings.dark,
+                onChanged: state.toggleDarkMode,
               ),
-              value: state.settings.dark,
-              onChanged: state.toggleDarkMode,
-            ),
-            _actionRow(
-              icon: Icons.privacy_tip_outlined,
-              title: 'Aviso de privacidad',
-              onTap: () => PrivacyScreen.open(context, state),
-            ),
-          ]),
+              _actionRow(
+                icon: Icons.privacy_tip_outlined,
+                title: 'Aviso de privacidad',
+                onTap: () => PrivacyScreen.open(context, state),
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
 
-          _sectionTitle('AVISOS'),
-          _box([
-            _noticeSwitch(
-              'Mis pedidos',
-              'Cambios de estado, cotizaciones nuevas y fotos del avance',
-              account?.noticeOrders ?? true,
-              account == null ? null : (v) => state.setNoticePrefs(orders: v),
-            ),
-            _noticeSwitch(
-              'Abonos',
-              'Cuando se registra un pago en tus pedidos',
-              account?.noticePayments ?? true,
-              account == null ? null : (v) => state.setNoticePrefs(payments: v),
-            ),
-            _noticeSwitch(
-              'Visitas',
-              'Cuando el taller confirma tu visita',
-              account?.noticeVisits ?? true,
-              account == null ? null : (v) => state.setNoticePrefs(visits: v),
-            ),
-          ]),
+          const SectionHeader('Avisos'),
+          ListBox(
+            children: [
+              _noticeSwitch(
+                'Mis pedidos',
+                'Cambios de estado, cotizaciones nuevas y fotos del avance',
+                account?.noticeOrders ?? true,
+                account == null ? null : (v) => state.setNoticePrefs(orders: v),
+              ),
+              _noticeSwitch(
+                'Abonos',
+                'Cuando se registra un pago en tus pedidos',
+                account?.noticePayments ?? true,
+                account == null
+                    ? null
+                    : (v) => state.setNoticePrefs(payments: v),
+              ),
+              _noticeSwitch(
+                'Visitas',
+                'Cuando el taller confirma tu visita',
+                account?.noticeVisits ?? true,
+                account == null ? null : (v) => state.setNoticePrefs(visits: v),
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
 
-          _sectionTitle('CONTACTO DEL TALLER'),
-          _box([
-            _infoRow('Taller', state.settings.bizName),
-            if (state.settings.bizPhone.isNotEmpty)
-              _infoRow('Teléfono', state.settings.bizPhone, mono: true),
-          ]),
+          const SectionHeader('Contacto del taller'),
+          ListBox(
+            children: [
+              _infoRow('Taller', state.settings.bizName),
+              if (state.settings.bizPhone.isNotEmpty)
+                _infoRow('Teléfono', state.settings.bizPhone, mono: true),
+            ],
+          ),
           if (state.settings.bizPhone.isNotEmpty) ...[
             const SizedBox(height: 10),
             Row(
@@ -387,35 +404,6 @@ class ClientProfileScreen extends StatelessWidget {
       ),
     );
     passCtrl.dispose();
-  }
-
-  Widget _sectionTitle(String text) => Padding(
-    padding: const EdgeInsets.only(left: 2, bottom: 8),
-    child: Text(text, style: AppText.label(color: AppColors.textMuted)),
-  );
-
-  Widget _box(List<Widget> children) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(kRadius),
-        border: Border.all(color: AppColors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      // Material propio: así el efecto al tocar los renglones se ve sobre el fondo.
-      child: Material(
-        type: MaterialType.transparency,
-        child: Column(
-          children: [
-            for (int i = 0; i < children.length; i++) ...[
-              if (i > 0)
-                Divider(height: 1, thickness: 1, color: AppColors.divider),
-              children[i],
-            ],
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _infoRow(String label, String value, {bool mono = false}) {
@@ -691,15 +679,9 @@ class ClientProfileScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.navy,
-              ),
-            ),
-            const SizedBox(height: 16),
+            SheetHeader(title),
+            const SizedBox(height: 8),
+
             ...children,
           ],
         ),

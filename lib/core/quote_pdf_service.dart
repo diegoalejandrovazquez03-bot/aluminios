@@ -241,19 +241,26 @@ class QuotePdfService {
   static pw.Widget _itemsTable(Quote quote, String Function(int) productName) {
     const cellPadding = pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7);
     return pw.TableHelper.fromTextArray(
-      headers: ['Producto', 'Medidas (cm)', 'Cant.', 'P. unitario', 'Importe'],
+      headers: ['Producto', 'Medidas (cm)', 'Cant.', 'Precio', 'Importe'],
       data: quote.items
           .map(
             (item) => [
-              productName(item.productId),
+              item.note.isEmpty
+                  ? productName(item.productId)
+                  : '${productName(item.productId)}\n${item.note}',
               '${_measure(item.width)} × ${_measure(item.height)}'
-                  '${item.depth == null ? '' : ' × ${_measure(item.depth!)}'}',
+                  '${item.depth == null ? '' : ' × ${_measure(item.depth!)}'}'
+                  '\n${item.area.toStringAsFixed(2)} m²',
               '${item.qty}',
-              _mxn(item.unitPrice),
+              // Por m² en las cotizaciones nuevas; por pieza en las anteriores.
+              item.pricePerM2 == null
+                  ? '${_mxn(item.unitPrice)} c/u'
+                  : '${_mxn(item.pricePerM2!)} / m²',
               _mxn(item.subtotal),
             ],
           )
           .toList(),
+
       border: null,
       headerDecoration: const pw.BoxDecoration(color: _carbon),
       headerStyle: pw.TextStyle(

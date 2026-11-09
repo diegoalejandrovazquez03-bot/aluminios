@@ -5,6 +5,7 @@ import '../../state/app_state.dart';
 import '../../widgets/avatar_widget.dart';
 import '../../widgets/profile_photo_options.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 
 class ProfileScreen extends StatelessWidget {
   final AppState state;
@@ -43,15 +44,8 @@ class ProfileScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Información del Negocio',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.navy,
-              ),
-            ),
-            const SizedBox(height: 14),
+            const SheetHeader('Información del negocio'),
+            const SizedBox(height: 6),
             TextField(
               controller: nameCtrl,
               decoration: const InputDecoration(labelText: 'Nombre comercial'),
@@ -118,15 +112,8 @@ class ProfileScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Configuración del Sistema',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.navy,
-                ),
-              ),
-              const SizedBox(height: 16),
+              const SheetHeader('Configuración del sistema'),
+              const SizedBox(height: 8),
               SwitchListTile.adaptive(
                 title: const Text(
                   'Asesor de cotización',
@@ -210,8 +197,6 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       appBar: TopBar(title: 'Mi Perfil'),
       body: ListView(
@@ -241,7 +226,7 @@ class ProfileScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : AppColors.navy,
+                    color: AppColors.navy,
                   ),
                 ),
                 Text(
@@ -261,102 +246,53 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 28),
 
-          // Options List
-          _menuTile(
-            icon: Icons.store_mall_directory_outlined,
-            title: 'Información del negocio',
-            onTap: () => _openBizModal(context),
-            isDark: isDark,
-          ),
-          _menuTile(
-            icon: Icons.dark_mode_outlined,
-            title: 'Modo oscuro',
-            onTap: () => state.toggleDarkMode(!state.settings.dark),
-            trailing: Switch.adaptive(
-              value: state.settings.dark,
-              activeTrackColor: AppColors.navy,
-              onChanged: (val) => state.toggleDarkMode(val),
-            ),
-            isDark: isDark,
-          ),
-          _menuTile(
-            icon: Icons.settings_outlined,
-            title: 'Configuración del sistema',
-            onTap: () => _openConfigModal(context),
-            isDark: isDark,
+          ListBox(
+            children: [
+              BoxRow(
+                leading: const IconBadge(Icons.store_mall_directory_outlined),
+                title: 'Información del negocio',
+                trailing: _chevron,
+                onTap: () => _openBizModal(context),
+              ),
+              BoxRow(
+                leading: const IconBadge(Icons.dark_mode_outlined),
+                title: 'Modo oscuro',
+                trailing: Switch.adaptive(
+                  value: state.settings.dark,
+                  activeTrackColor: AppColors.navy,
+                  onChanged: (val) => state.toggleDarkMode(val),
+                ),
+                onTap: () => state.toggleDarkMode(!state.settings.dark),
+              ),
+              BoxRow(
+                leading: const IconBadge(Icons.settings_outlined),
+                title: 'Configuración del sistema',
+                trailing: _chevron,
+                onTap: () => _openConfigModal(context),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
 
-          // Logout
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.cancelledBg,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.cancelledBg),
-            ),
-            child: Material(
-              type: MaterialType.transparency,
-              child: ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
+          // Cerrar sesión: en rojo y aparte de las demás opciones.
+          ListBox(
+            children: [
+              BoxRow(
+                leading: IconBadge(
+                  Icons.logout,
+                  color: AppColors.cancelled,
+                  background: AppColors.cancelledBg,
                 ),
-                leading: Icon(Icons.logout, color: AppColors.cancelled),
-                title: Text(
-                  'Cerrar sesión',
-                  style: TextStyle(
-                    color: AppColors.cancelled,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                trailing: Icon(Icons.chevron_right, color: AppColors.cancelled),
+                title: 'Cerrar sesión',
+                trailing: _chevron,
                 onTap: () => _confirmLogout(context),
               ),
-            ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _menuTile({
-    required IconData icon,
-    required String title,
-    VoidCallback? onTap,
-    Widget? trailing,
-    required bool isDark,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : Colors.white,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.hairline),
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: ListTile(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-          leading: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.lightBlue,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(icon, color: AppColors.navy, size: 20),
-          ),
-          title: Text(
-            title,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-              color: isDark ? Colors.white : AppColors.navy,
-            ),
-          ),
-          trailing:
-              trailing ?? Icon(Icons.chevron_right, color: AppColors.textMuted),
-          onTap: onTap,
-        ),
-      ),
-    );
-  }
+  Widget get _chevron => Icon(Icons.chevron_right, color: AppColors.textMuted);
 }

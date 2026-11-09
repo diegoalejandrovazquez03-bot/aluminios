@@ -11,6 +11,7 @@ import '../../state/app_state.dart';
 import '../../widgets/image_viewer.dart';
 import '../../widgets/sheet_message.dart';
 import '../../widgets/top_bar.dart';
+import '../../widgets/ui.dart';
 
 class CatalogScreen extends StatefulWidget {
   final AppState state;
@@ -55,8 +56,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
-          final isDark = Theme.of(ctx).brightness == Brightness.dark;
-
           return Container(
             padding: EdgeInsets.only(
               left: 20,
@@ -65,7 +64,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
             ),
             decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
+              color: AppColors.card,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(10),
               ),
@@ -75,24 +74,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Agregar foto al catálogo',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.navy,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
+                  const SheetHeader('Agregar foto al catálogo'),
+                  const SizedBox(height: 6),
 
                   TextField(
                     controller: titleCtrl,
@@ -312,7 +295,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final works = state.works.where((w) {
       return _typeFilter == 'Todos' || w.type == _typeFilter;
@@ -326,56 +308,27 @@ class _CatalogScreenState extends State<CatalogScreen> {
       ),
       body: Column(
         children: [
-          // Filter Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: _types.map((t) {
-                final isSel = _typeFilter == t;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(t),
-                    selected: isSel,
-                    selectedColor: AppColors.navy,
-                    labelStyle: TextStyle(
-                      color: isSel
-                          ? Colors.white
-                          : (isDark ? Colors.white70 : AppColors.navy),
-                      fontWeight: isSel ? FontWeight.w600 : FontWeight.w500,
-                      fontSize: 12,
-                    ),
-                    backgroundColor: isDark
-                        ? AppColors.surfaceDark
-                        : Colors.white,
-                    side: BorderSide(
-                      color: isSel ? Colors.transparent : AppColors.border,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    onSelected: (val) => setState(() => _typeFilter = t),
-                  ),
-                );
-              }).toList(),
-            ),
+          FilterBar(
+            options: _types,
+            selected: _typeFilter,
+            onSelected: (t) => setState(() => _typeFilter = t),
           ),
-
-          // Grid of Works
           Expanded(
             child: works.isEmpty
-                ? Center(
-                    child: Text(
-                      'Sin fotos para esta categoría',
-                      style: TextStyle(color: AppColors.textMuted),
-                    ),
+                ? ListView(
+                    padding: const EdgeInsets.only(top: 40),
+                    children: [
+                      EmptyState(
+                        icon: Icons.photo_library_outlined,
+                        title: 'Sin fotos para esta categoría',
+                        actionLabel: 'Subir foto',
+                        onAction: _openUploadModal,
+                      ),
+                    ],
                   )
                 : GridView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
+                    // Espacio abajo para que el botón flotante no tape la última fila.
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
@@ -386,45 +339,30 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     itemCount: works.length,
                     itemBuilder: (context, i) {
                       final w = works[i];
-                      return GestureDetector(
+                      return AppCard(
+                        padding: EdgeInsets.zero,
                         onTap: () => _openPhotoViewer(w),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? AppColors.surfaceDark
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.hairline),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: ClipRRect(
-                                  borderRadius: const BorderRadius.vertical(
-                                    top: Radius.circular(10),
-                                  ),
-                                  child: _workImage(w.img, fit: BoxFit.cover),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: _workImage(w.img, fit: BoxFit.cover),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Text(
+                                w.title,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12,
+                                  color: AppColors.navy,
                                 ),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              Padding(
-                                padding: const EdgeInsets.all(8),
-                                child: Text(
-                                  w.title,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                    color: isDark
-                                        ? Colors.white
-                                        : AppColors.navy,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       );
                     },
@@ -433,8 +371,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.navy,
-        foregroundColor: AppColors.onInk,
         icon: const Icon(Icons.add_a_photo),
         label: const Text(
           'Subir foto',
@@ -454,8 +390,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
     return Image.network(
       source,
       fit: fit,
-      errorBuilder: (context, error, stackTrace) =>
-          Container(color: Colors.black12, child: const Icon(Icons.image)),
+      errorBuilder: (context, error, stackTrace) => Container(
+        color: AppColors.lightBlue,
+        child: Icon(Icons.image_outlined, color: AppColors.textMuted),
+      ),
     );
   }
 }
