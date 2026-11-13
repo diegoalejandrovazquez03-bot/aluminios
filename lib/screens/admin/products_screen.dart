@@ -318,7 +318,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
     return Scaffold(
       appBar: TopBar(
-        title: 'ALUMINIOS',
+        title: 'Productos',
         showLogo: true,
         onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
       ),
@@ -327,7 +327,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
             child: SectionHeader(
-              'Productos',
+              'Precios por m²',
               action: 'Crear nuevo',
               actionIcon: Icons.add,
               onAction: () => _openProductForm(),

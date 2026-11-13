@@ -46,6 +46,21 @@ class _AgendaScreenState extends State<AgendaScreen> {
     'dic',
   ];
 
+  static const _monthNames = [
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
+  ];
+
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
   static DateTime get _today => _dateOnly(DateTime.now());
 
@@ -271,7 +286,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
 
     return Scaffold(
       appBar: TopBar(
-        title: 'Agenda de Visitas',
+        title: 'Agenda de visitas',
         showLogo: true,
         onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
       ),
@@ -295,9 +310,17 @@ class _AgendaScreenState extends State<AgendaScreen> {
                 // Solo deslizar a los lados (cambiar de mes); hacia arriba o abajo
                 // desplaza la pantalla.
                 availableGestures: AvailableGestures.horizontalSwipe,
+                // En español sin depender del idioma del teléfono.
+                startingDayOfWeek: StartingDayOfWeek.monday,
+                daysOfWeekStyle: DaysOfWeekStyle(
+                  dowTextFormatter: (date, locale) =>
+                      _weekdays[date.weekday - 1],
+                ),
                 headerStyle: HeaderStyle(
                   formatButtonVisible: false,
                   titleCentered: true,
+                  titleTextFormatter: (date, locale) =>
+                      '${_monthNames[date.month - 1]} ${date.year}',
                   titleTextStyle: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 16,

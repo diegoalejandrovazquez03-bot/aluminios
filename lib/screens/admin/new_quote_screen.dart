@@ -357,7 +357,8 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: TopBar(title: 'Nueva Cotización'),
+      // Sin avatar: tocarlo a media cotización perdería lo capturado.
+      appBar: TopBar(title: 'Nueva cotización'),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [

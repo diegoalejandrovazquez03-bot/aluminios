@@ -57,10 +57,8 @@ class AppImage extends StatelessWidget {
   Widget _placeholder() => Container(
     width: width,
     height: height,
-    color: AppColors.border,
-    child: const Icon(
-      Icons.image_not_supported_outlined,
-      color: Colors.black38,
-    ),
+    // Igual que el recuadro "sin foto" de Productos y Catálogo, en ambos modos.
+    color: AppColors.dark ? AppColors.borderDark : AppColors.dividerLight,
+    child: Icon(Icons.image_outlined, color: AppColors.textMuted),
   );
 }

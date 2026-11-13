@@ -54,20 +54,7 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
 
-    // Saldo por cobrar
-    double totalBalance = 0;
-    int quotesWithBalance = 0;
-    for (final q in state.quotes) {
-      if (q.status == QuoteStatus.cancelada ||
-          q.status == QuoteStatus.pendiente) {
-        continue;
-      }
-      final rem = q.total - state.paidOf(q.id);
-      if (rem > 0) {
-        totalBalance += rem;
-        quotesWithBalance++;
-      }
-    }
+    final (amount: totalBalance, quotes: quotesWithBalance) = state.balanceDue;
 
     // Cifras del mes
     final monthQuotes = state.quotes
@@ -126,6 +113,8 @@ class DashboardScreen extends StatelessWidget {
               caption: quotesWithBalance == 1
                   ? 'En 1 cotización aprobada'
                   : 'En $quotesWithBalance cotizaciones aprobadas',
+              // Las tres cifras son solo del mes en curso.
+              figuresLabel: 'Este mes · ${_months[now.month - 1]}',
               figures: [
                 ('Cotizado', AppState.formatMXN(quotedMonth)),
                 ('Aprobado', AppState.formatMXN(approvedMonth)),

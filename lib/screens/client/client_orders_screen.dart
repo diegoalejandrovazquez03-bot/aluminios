@@ -29,7 +29,7 @@ class ClientOrdersScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: TopBar(
-        title: 'Mis Pedidos',
+        title: 'Mis pedidos',
         showLogo: true,
         actions: [NoticesButton(state: state)],
         onAvatarTap: () => onNavigate(ClientScreen.perfil),
@@ -98,7 +98,7 @@ class ClientOrdersScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${q.date} · ${q.items.length} pieza(s)',
+            '${q.date} · ${AppState.plural(q.items.length, 'pieza', 'piezas')}',
             style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
           Divider(height: 20, color: AppColors.divider),

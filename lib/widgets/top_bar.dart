@@ -17,7 +17,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   const TopBar({
     super.key,
     required this.title,
-    this.showLogo = false,
+    this.showLogo = true,
     this.leading,
     this.actions,
     this.onAvatarTap,
@@ -31,6 +31,9 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final fg = isDark ? AppColors.textOnDark : AppColors.carbon;
+    // "ALUMINIOS" (pantallas de inicio) va espaciado como el logotipo; los
+    // títulos de sección van normales.
+    final isBrand = title == title.toUpperCase();
 
     // Menú lateral a la izquierda; la flecha de regresar va a la derecha.
     return AppBar(
@@ -75,8 +78,8 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
               style: TextStyle(
                 color: fg,
                 fontWeight: FontWeight.w600,
-                fontSize: showLogo ? 15 : 17,
-                letterSpacing: showLogo ? 3 : 0,
+                fontSize: isBrand ? 15 : 17,
+                letterSpacing: isBrand ? 3 : 0,
               ),
             ),
           ),

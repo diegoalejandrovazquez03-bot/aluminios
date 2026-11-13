@@ -187,7 +187,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     ],
                   ),
                   if (photoData.isNotEmpty)
-                    Text('${photoData.length} foto(s) seleccionada(s).'),
+                    Text(
+                      '${photoData.length == 1 ? '1 foto seleccionada' : '${photoData.length} fotos seleccionadas'}.',
+                    ),
                   const SizedBox(height: 8),
                   const Text(
                     'Medidas manuales (cm)',
@@ -302,7 +304,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
     return Scaffold(
       appBar: TopBar(
-        title: 'Catálogo Visual',
+        title: 'Catálogo visual',
         showLogo: true,
         onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
       ),

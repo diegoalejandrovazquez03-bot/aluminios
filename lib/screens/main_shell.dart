@@ -69,10 +69,12 @@ class _MainShellState extends State<MainShell> {
     return true;
   }
 
-  /// Pestaña inferior que corresponde a cada pantalla. Las pantallas que no
-  /// son pestaña se marcan en la sección desde la que se abren.
-  int _adminTabFor(int screen) {
+  /// Pestaña inferior que corresponde a cada pantalla, o null si la pantalla
+  /// no es pestaña (pagos, agenda, catálogo): entonces no se marca ninguna.
+  int? _adminTabFor(int screen) {
     switch (screen) {
+      case AdminScreen.inicio:
+        return 0;
       case AdminScreen.productos:
         return 1;
       case AdminScreen.cotizaciones:
@@ -83,8 +85,8 @@ class _MainShellState extends State<MainShell> {
         return 3;
       case AdminScreen.perfil:
         return 4;
-      default: // inicio, pagos, agenda y catálogo se abren desde Inicio
-        return 0;
+      default:
+        return null;
     }
   }
 
@@ -94,6 +96,20 @@ class _MainShellState extends State<MainShell> {
     AdminScreen.cotizaciones,
     AdminScreen.clientes,
     AdminScreen.perfil,
+  ];
+  // Ícono, ícono marcado y texto de cada pestaña.
+  static const _adminDestinations = [
+    (Icons.home_outlined, Icons.home, 'Inicio'),
+    (Icons.inventory_2_outlined, Icons.inventory_2, 'Productos'),
+    (Icons.receipt_long_outlined, Icons.receipt_long, 'Cotizaciones'),
+    (Icons.people_outline, Icons.people, 'Clientes'),
+    (Icons.person_outline, Icons.person, 'Perfil'),
+  ];
+  static const _clientDestinations = [
+    (Icons.home_outlined, Icons.home, 'Inicio'),
+    (Icons.inventory_2_outlined, Icons.inventory_2, 'Catálogo'),
+    (Icons.receipt_long_outlined, Icons.receipt_long, 'Pedidos'),
+    (Icons.person_outline, Icons.person, 'Perfil'),
   ];
   static const _clientTabs = [
     ClientScreen.inicio,
@@ -198,9 +214,15 @@ class _MainShellState extends State<MainShell> {
       }
     }
 
-    final bottomNavIndex = isAdmin
+    final tab = isAdmin
         ? _adminTabFor(_currentScreenIndex)
         : _clientTabs.indexOf(_currentScreenIndex).clamp(0, 3);
+    // NavigationBar siempre marca una pestaña; en pantallas que no son
+    // pestaña se le quita el resaltado para que ninguna parezca activa.
+    final navTheme = NavigationBarTheme.of(context);
+    final unselected = WidgetStatePropertyAll(
+      navTheme.labelTextStyle?.resolve({}),
+    );
 
     // Cada pantalla tiene su propia identidad: al cambiar de apartado nunca
     // se reutiliza el estado (filtros, formularios) de otra pantalla.
@@ -230,60 +252,30 @@ class _MainShellState extends State<MainShell> {
               ),
             ),
           ),
-          child: NavigationBar(
-            selectedIndex: bottomNavIndex,
-            destinations: isAdmin
-                ? const [
-                    NavigationDestination(
-                      icon: Icon(Icons.home_outlined),
-                      selectedIcon: Icon(Icons.home),
-                      label: 'Inicio',
+          child: NavigationBarTheme(
+            data: tab != null
+                ? navTheme
+                : navTheme.copyWith(
+                    indicatorColor: Colors.transparent,
+                    labelTextStyle: unselected,
+                    iconTheme: WidgetStatePropertyAll(
+                      navTheme.iconTheme?.resolve({}),
                     ),
-                    NavigationDestination(
-                      icon: Icon(Icons.inventory_2_outlined),
-                      selectedIcon: Icon(Icons.inventory_2),
-                      label: 'Productos',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.receipt_long_outlined),
-                      selectedIcon: Icon(Icons.receipt_long),
-                      label: 'Cotizaciones',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.people_outline),
-                      selectedIcon: Icon(Icons.people),
-                      label: 'Clientes',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.person_outline),
-                      selectedIcon: Icon(Icons.person),
-                      label: 'Perfil',
-                    ),
-                  ]
-                : const [
-                    NavigationDestination(
-                      icon: Icon(Icons.home_outlined),
-                      selectedIcon: Icon(Icons.home),
-                      label: 'Inicio',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.inventory_2_outlined),
-                      selectedIcon: Icon(Icons.inventory_2),
-                      label: 'Catálogo',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.receipt_long_outlined),
-                      selectedIcon: Icon(Icons.receipt_long),
-                      label: 'Pedidos',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.person_outline),
-                      selectedIcon: Icon(Icons.person),
-                      label: 'Perfil',
-                    ),
-                  ],
-            onDestinationSelected: (dest) =>
-                _navigateTo(isAdmin ? _adminTabs[dest] : _clientTabs[dest]),
+                  ),
+            child: NavigationBar(
+              selectedIndex: tab ?? 0,
+              destinations: [
+                for (final (icon, selectedIcon, label)
+                    in isAdmin ? _adminDestinations : _clientDestinations)
+                  NavigationDestination(
+                    icon: Icon(icon),
+                    selectedIcon: Icon(tab != null ? selectedIcon : icon),
+                    label: label,
+                  ),
+              ],
+              onDestinationSelected: (dest) =>
+                  _navigateTo(isAdmin ? _adminTabs[dest] : _clientTabs[dest]),
+            ),
           ),
         ),
       ),

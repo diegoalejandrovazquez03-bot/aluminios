@@ -411,6 +411,10 @@ class AppState extends ChangeNotifier {
   }
 
   // Formatting helpers
+  /// "1 pieza" / "3 piezas", en lugar de "pieza(s)".
+  static String plural(int n, String one, String many) =>
+      '$n ${n == 1 ? one : many}';
+
   /// "$ 12,500" en pesos cerrados y "$ 12,500.50" cuando hay centavos
   /// (antes se redondeaba y un abono de $1,850.50 se veía como $1,851).
   static String formatMXN(num amount) {
@@ -1559,6 +1563,26 @@ class AppState extends ChangeNotifier {
     return _payments
         .where((p) => p.quoteId == quoteId)
         .fold(0.0, (acc, p) => acc + p.amount);
+  }
+
+  /// Saldo por cobrar: lo que falta pagar de las cotizaciones ya aprobadas
+  /// (las pendientes aún no son venta y las canceladas no cuentan). Inicio y
+  /// Pagos usan este mismo cálculo para mostrar la misma cifra.
+  ({double amount, int quotes}) get balanceDue {
+    var amount = 0.0;
+    var count = 0;
+    for (final q in _quotes) {
+      if (q.status == QuoteStatus.cancelada ||
+          q.status == QuoteStatus.pendiente) {
+        continue;
+      }
+      final rem = q.total - paidOf(q.id);
+      if (rem > 0) {
+        amount += rem;
+        count++;
+      }
+    }
+    return (amount: amount, quotes: count);
   }
 
   // CRUD Visits

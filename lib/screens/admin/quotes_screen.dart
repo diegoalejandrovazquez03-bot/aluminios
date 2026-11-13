@@ -351,7 +351,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${q.date} · ${q.items.length} pieza(s)',
+                      '${q.date} · ${AppState.plural(q.items.length, 'pieza', 'piezas')}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

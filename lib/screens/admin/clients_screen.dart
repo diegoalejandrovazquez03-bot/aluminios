@@ -306,7 +306,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
                           onTap: () => _openClientFile(c),
                           leading: AvatarWidget(name: c.name, size: 42),
                           title: c.name,
-                          subtitle: '${c.phone} · $orders pedido(s)',
+                          subtitle:
+                              '${c.phone}\n${AppState.plural(orders, 'pedido', 'pedidos')}',
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

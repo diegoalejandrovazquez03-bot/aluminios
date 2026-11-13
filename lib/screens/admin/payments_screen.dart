@@ -5,6 +5,7 @@ import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/payment_sheet.dart';
+import '../../widgets/sales_chart.dart' show parseAppDate;
 import '../../widgets/top_bar.dart';
 import '../../widgets/ui.dart';
 
@@ -29,23 +30,22 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   Widget build(BuildContext context) {
     final state = widget.state;
 
-    double monthTotal = 0.0;
-    for (final p in state.payments) {
-      monthTotal += p.amount;
-    }
-
-    double pendingBalance = 0.0;
-    for (final q in state.quotes) {
-      if (q.status != QuoteStatus.cancelada) {
-        final paid = state.paidOf(q.id);
-        final rem = q.total - paid;
-        if (rem > 0) pendingBalance += rem;
-      }
-    }
+    final totalCollected = state.payments.fold<double>(
+      0,
+      (a, p) => a + p.amount,
+    );
+    final balance = state.balanceDue;
+    // Historial del más reciente al más antiguo, por fecha del pago.
+    final payments = [...state.payments]
+      ..sort((a, b) {
+        final da = parseAppDate(a.date) ?? DateTime(0);
+        final db = parseAppDate(b.date) ?? DateTime(0);
+        return db.compareTo(da);
+      });
 
     return Scaffold(
       appBar: TopBar(
-        title: 'Anticipos y Pagos',
+        title: 'Anticipos y pagos',
         showLogo: true,
         onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
       ),
@@ -54,9 +54,12 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         children: [
           MetricPanel(
             label: 'Saldo por cobrar',
-            value: AppState.formatMXN(pendingBalance),
+            value: AppState.formatMXN(balance.amount),
+            caption: balance.quotes == 1
+                ? 'En 1 cotización aprobada'
+                : 'En ${balance.quotes} cotizaciones aprobadas',
             figures: [
-              ('Total cobrado', AppState.formatMXN(monthTotal)),
+              ('Total cobrado', AppState.formatMXN(totalCollected)),
               ('Pagos registrados', '${state.payments.length}'),
             ],
           ),
@@ -78,11 +81,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               message: 'Los anticipos y abonos aparecerán aquí.',
             )
           else
-            ListBox(
-              children: [
-                for (final p in state.payments.reversed) _paymentRow(p),
-              ],
-            ),
+            ListBox(children: [for (final p in payments) _paymentRow(p)]),
         ],
       ),
     );

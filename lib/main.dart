@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/constants.dart';
 import 'core/theme.dart';
@@ -85,6 +86,10 @@ class AluminiosApp extends StatelessWidget {
         return MaterialApp(
           title: 'ALUMINIOS',
           debugShowCheckedModeBanner: false,
+          // Calendarios, selectores de fecha y menús (copiar/pegar) en español.
+          locale: const Locale('es', 'MX'),
+          supportedLocales: const [Locale('es', 'MX'), Locale('es')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
           theme: AppTheme.lightTheme(),
           darkTheme: AppTheme.darkTheme(),
           themeMode: isDark ? ThemeMode.dark : ThemeMode.light,

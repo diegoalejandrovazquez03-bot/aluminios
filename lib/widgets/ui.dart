@@ -296,6 +296,9 @@ class MetricPanel extends StatelessWidget {
   final String value;
   final String? caption;
   final List<(String, String)> figures;
+
+  /// Encabezado de las cifras de abajo (p. ej. el periodo que abarcan).
+  final String? figuresLabel;
   final VoidCallback? onTap;
 
   const MetricPanel({
@@ -304,6 +307,7 @@ class MetricPanel extends StatelessWidget {
     required this.value,
     this.caption,
     this.figures = const [],
+    this.figuresLabel,
     this.onTap,
   });
 
@@ -346,46 +350,62 @@ class MetricPanel extends StatelessWidget {
                 decoration: const BoxDecoration(
                   border: Border(top: BorderSide(color: AppColors.borderDark)),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (int i = 0; i < figures.length; i++)
-                      Expanded(
-                        child: Container(
-                          padding: EdgeInsets.only(left: i == 0 ? 0 : 12),
-                          decoration: i == 0
-                              ? null
-                              : const BoxDecoration(
-                                  border: Border(
-                                    left: BorderSide(
-                                      color: AppColors.borderDark,
-                                    ),
-                                  ),
-                                ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                figures[i].$1,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.aluminum,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                figures[i].$2,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppText.mono(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w400,
-                                  color: AppColors.textOnDark,
-                                ),
-                              ),
-                            ],
-                          ),
+                    if (figuresLabel != null) ...[
+                      Text(
+                        figuresLabel!.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                          color: AppColors.aluminum,
                         ),
                       ),
+                      const SizedBox(height: 8),
+                    ],
+                    Row(
+                      children: [
+                        for (int i = 0; i < figures.length; i++)
+                          Expanded(
+                            child: Container(
+                              padding: EdgeInsets.only(left: i == 0 ? 0 : 12),
+                              decoration: i == 0
+                                  ? null
+                                  : const BoxDecoration(
+                                      border: Border(
+                                        left: BorderSide(
+                                          color: AppColors.borderDark,
+                                        ),
+                                      ),
+                                    ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    figures[i].$1,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.aluminum,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    figures[i].$2,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppText.mono(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w400,
+                                      color: AppColors.textOnDark,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),

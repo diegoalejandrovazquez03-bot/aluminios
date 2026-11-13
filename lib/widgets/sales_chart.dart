@@ -84,14 +84,25 @@ class SalesChart extends StatelessWidget {
     'Dic',
   ];
 
-  /// $12,500 → "12.5k" para que quepa en el eje.
+  /// $12,500 → "$12.5k" para que quepa en el eje.
   static String _compact(double value) {
-    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
-    if (value >= 1000) {
-      final k = value / 1000;
-      return '${k >= 10 ? k.toStringAsFixed(0) : k.toStringAsFixed(1)}k';
+    String trim(double v) =>
+        v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+    if (value >= 1000000) return '\$${trim(value / 1000000)}M';
+    if (value >= 1000) return '\$${trim(value / 1000)}k';
+    return '\$${value.toStringAsFixed(0)}';
+  }
+
+  /// Paso redondo del eje (1, 2, 2.5 o 5 × 10ⁿ) para unas 4 divisiones.
+  static double _niceStep(double peak) {
+    final raw = peak / 4;
+    final magnitude = math
+        .pow(10, (math.log(raw) / math.ln10).floor())
+        .toDouble();
+    for (final f in [1.0, 2.0, 2.5, 5.0, 10.0]) {
+      if (f * magnitude >= raw) return f * magnitude;
     }
-    return value.toStringAsFixed(0);
+    return 10 * magnitude;
   }
 
   @override
@@ -107,7 +118,10 @@ class SalesChart extends StatelessWidget {
     );
     final hasData = peak > 0;
     // Tope redondo con aire arriba de la barra más alta.
-    final maxY = hasData ? peak * 1.15 : 1000.0;
+    final step = hasData ? _niceStep(peak) : 250.0;
+    var maxY = (peak / step).ceil() * step;
+    if (maxY < peak * 1.08) maxY += step;
+    if (maxY == 0) maxY = 1000;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 14, 14, 10),
@@ -142,7 +156,7 @@ class SalesChart extends StatelessWidget {
                     borderData: FlBorderData(show: false),
                     gridData: FlGridData(
                       drawVerticalLine: false,
-                      horizontalInterval: maxY / 4,
+                      horizontalInterval: step,
                       getDrawingHorizontalLine: (_) =>
                           FlLine(color: gridColor, strokeWidth: 1),
                     ),
@@ -152,11 +166,9 @@ class SalesChart extends StatelessWidget {
                       leftTitles: AxisTitles(
                         sideTitles: SideTitles(
                           showTitles: hasData,
-                          reservedSize: 36,
-                          interval: maxY / 4,
+                          reservedSize: 40,
+                          interval: step,
                           getTitlesWidget: (value, meta) {
-                            // Sin la etiqueta del tope: no es un valor redondo.
-                            if (value == meta.max) return const SizedBox();
                             return Text(
                               _compact(value),
                               style: TextStyle(

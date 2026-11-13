@@ -333,7 +333,7 @@ class ClientCatalogScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: TopBar(
-        title: 'Catálogo de Diseños',
+        title: 'Catálogo',
         showLogo: true,
         onAvatarTap: () => onNavigate(ClientScreen.perfil),
       ),

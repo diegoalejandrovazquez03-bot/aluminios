@@ -49,7 +49,6 @@ class ProfileScreen extends StatelessWidget {
   static String? _optionalEmail(String v) =>
       v.trim().isEmpty ? null : AccountInput.validateEmail(v.trim());
 
-
   static String? _clabe(String v) {
     if (v.isEmpty) return null;
     return RegExp(r'^\d{18}$').hasMatch(v) ? null : 'La CLABE tiene 18 dígitos';
@@ -244,7 +243,6 @@ class ProfileScreen extends StatelessWidget {
       ),
     ),
   );
-
 
   void _editQuoteRules(BuildContext context) => _editSheet(
     context,
@@ -461,7 +459,7 @@ class ProfileScreen extends StatelessWidget {
     final email = state.session?.email ?? '';
 
     return Scaffold(
-      appBar: TopBar(title: 'Mi Perfil'),
+      appBar: TopBar(title: 'Mi perfil'),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
@@ -474,7 +472,11 @@ class ProfileScreen extends StatelessWidget {
               _row(
                 Icons.person_outline,
                 'Nombre',
-                _orDash(_s.ownerName),
+                // Arriba se muestra "Administrador" mientras no haya nombre;
+                // aquí se invita a capturarlo.
+                _s.ownerName.trim().isEmpty
+                    ? 'Toca para agregar tu nombre'
+                    : _s.ownerName.trim(),
                 () => _editOwner(context),
               ),
               BoxRow(

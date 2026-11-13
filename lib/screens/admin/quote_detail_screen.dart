@@ -278,7 +278,10 @@ class QuoteDetailScreen extends StatelessWidget {
     final saldo = (quote.total - paid).clamp(0.0, double.infinity);
 
     return Scaffold(
-      appBar: TopBar(title: quote.folio),
+      appBar: TopBar(
+        title: 'Cotización',
+        onAvatarTap: () => onNavigate(AdminScreen.perfil),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -360,18 +363,20 @@ class QuoteDetailScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  IconButton.filledTonal(
+                  // Mismo estilo que en Clientes: contorno, WhatsApp en verde.
+                  IconButton.outlined(
                     tooltip: 'Llamar',
-                    icon: const Icon(Icons.phone, size: 18),
+                    icon: const Icon(Icons.phone_outlined, size: 18),
                     onPressed: () => ExternalLinks.call(context, client.phone),
                   ),
                   const SizedBox(width: 6),
-                  IconButton.filled(
+                  IconButton.outlined(
                     tooltip: 'WhatsApp',
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.done,
+                    icon: Icon(
+                      Icons.chat_bubble_outline,
+                      color: AppColors.done,
+                      size: 18,
                     ),
-                    icon: Icon(Icons.chat, color: AppColors.onInk, size: 18),
                     onPressed: () =>
                         _openWhatsApp(context, client.phone, quote, client),
                   ),
