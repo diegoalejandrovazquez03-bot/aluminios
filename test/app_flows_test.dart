@@ -4,7 +4,6 @@ import 'package:aluminios_app/main.dart';
 import 'package:aluminios_app/models/models.dart';
 import 'package:aluminios_app/state/app_state.dart';
 import 'package:aluminios_app/widgets/avatar_widget.dart';
-import 'package:aluminios_app/widgets/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -49,6 +48,7 @@ void main() {
   darkModeTests();
   clientPortalExtrasTests();
   clientProfileExtrasTests();
+  adminProfileTests();
 
   testWidgets('Cotizaciones abre con datos de ejemplo', (tester) async {
     await pumpAdminApp(tester);
@@ -1093,5 +1093,117 @@ void clientProfileExtrasTests() {
     expect(find.text('Responsable'), findsOneWidget);
     expect(find.textContaining('datos personales'), findsWidgets);
     expect(tester.takeException(), isNull);
+  });
+}
+
+void adminProfileTests() {
+  test('La configuración guarda los datos nuevos del taller', () {
+    final settings = Settings(
+      ownerName: 'Diego',
+      bizEmail: 'taller@correo.com',
+      quoteValidityDays: 30,
+      defaultPricePerM2: 950,
+      bankName: 'BBVA',
+      bankClabe: '012345678901234567',
+      dark: true,
+    );
+    final copy = Settings.fromMap(settings.toMap());
+    expect(copy.ownerName, 'Diego');
+    expect(copy.bizEmail, 'taller@correo.com');
+
+    expect(copy.quoteValidityDays, 30);
+    expect(copy.defaultPricePerM2, 950);
+    expect(copy.bankLines, ['Banco: BBVA', 'CLABE: 012345678901234567']);
+
+    // Lo que viene del servidor no cambia las preferencias del teléfono.
+    final merged = copy.withServerProfile({
+      'bizName': 'Taller Nuevo',
+      'dark': false,
+    });
+    expect(merged.bizName, 'Taller Nuevo');
+    expect(merged.dark, isTrue);
+
+    // Una configuración guardada antes de estos campos usa los de fábrica.
+    final old = Settings.fromMap({'bizName': 'Viejo'});
+    expect(old.quoteValidityDays, 15);
+    expect(old.defaultPricePerM2, Product.defaultPricePerM2);
+    expect(old.hasBankInfo, isFalse);
+  });
+
+  testWidgets('Perfil del dueño: valida y guarda negocio y transferencia', (
+    tester,
+  ) async {
+    final state = await pumpAdminApp(tester);
+    await tapNav(tester, 'Perfil');
+    expect(find.text('Datos fiscales'), findsNothing);
+
+    // Negocio: un teléfono incompleto no se guarda.
+    await tester.tap(find.text(state.settings.bizName));
+    await tester.pumpAndSettle();
+    final phoneField = find.widgetWithText(TextField, 'Teléfono / WhatsApp *');
+    final oldPhone = state.settings.bizPhone;
+    await tester.enterText(phoneField, '99912');
+    await tester.ensureVisible(find.text('Guardar'));
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(state.settings.bizPhone, oldPhone);
+    await tester.enterText(phoneField, '9991234567');
+    await tester.ensureVisible(find.text('Guardar'));
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(state.settings.bizPhone, '9991234567');
+
+    // Transferencia: la CLABE debe tener 18 dígitos.
+    await tester.ensureVisible(find.text('Pago por transferencia'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pago por transferencia'));
+
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Banco'), 'BBVA');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'CLABE interbancaria'),
+      '0123',
+    );
+    await tester.ensureVisible(find.text('Guardar'));
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(state.settings.hasBankInfo, isFalse);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'CLABE interbancaria'),
+      '012345678901234567',
+    );
+    await tester.ensureVisible(find.text('Guardar'));
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(state.settings.bankClabe, '012345678901234567');
+    expect(state.settings.bankName, 'BBVA');
+
+    // Se guardó también en el servidor para que lo vean los clientes.
+    await tester.pumpAndSettle();
+    expect(server.table('perfil').single['bankClabe'], '012345678901234567');
+    // Deja que se cierren los avisos de validación.
+    await tester.pump(const Duration(seconds: 3));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('El cliente ve los datos del taller que guardó el dueño', (
+    tester,
+  ) async {
+    server.table('perfil').add({
+      'id': 1,
+      'bizName': 'Aluminios del Sur',
+      'bizPhone': '9990001122',
+      'bizHours': 'Lun a Vie 9:00–18:00',
+      'bankName': 'Banorte',
+      'bankClabe': '072123456789012345',
+      'dark': true,
+    });
+    final state = await pumpClientApp(tester);
+    await state.refreshFromServer();
+    expect(state.settings.bizName, 'Aluminios del Sur');
+    expect(state.settings.bizHours, 'Lun a Vie 9:00–18:00');
+    expect(state.settings.bankClabe, '072123456789012345');
+    // El modo oscuro es de cada teléfono: no lo cambia el del dueño.
+    expect(state.settings.dark, isFalse);
   });
 }

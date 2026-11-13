@@ -483,70 +483,162 @@ class Work {
   }
 }
 
+/// Configuración del taller. Los datos del negocio, de cotizaciones y de
+/// pagos se guardan en el servidor ("perfil") y los ve también el cliente;
+/// [dark], [ai] y [notifications] son preferencias de cada teléfono.
 class Settings {
+  // Negocio
   final String bizName;
   final String bizPhone;
   final String bizAddress;
+  final String bizEmail;
+  final String bizHours;
+  final String profileDescription;
+
+  // Dueño
+  final String ownerName;
+  final String avatarUrl;
+
+  // Cotizaciones
+  final int quoteValidityDays;
+  final String quoteTerms;
+  final double defaultPricePerM2;
+
+  // Pagos por transferencia
+  final String bankName;
+  final String bankHolder;
+  final String bankClabe;
+
+  // Preferencias del teléfono
   final bool dark;
   final bool ai;
   final bool notifications;
-  final String avatarUrl;
-  final String profileDescription;
 
   Settings({
     this.bizName = 'Aluminios AV',
     this.bizPhone = '999 340 9396',
     this.bizAddress = 'Calle 60 #450, Mérida, Yuc.',
+    this.bizEmail = '',
+    this.bizHours = '',
+    this.profileDescription = '',
+    this.ownerName = '',
+    this.avatarUrl = '',
+    this.quoteValidityDays = 15,
+    this.quoteTerms = '',
+    this.defaultPricePerM2 = Product.defaultPricePerM2,
+    this.bankName = '',
+    this.bankHolder = '',
+    this.bankClabe = '',
     this.dark = false,
     this.ai = true,
     this.notifications = true,
-    this.avatarUrl = '',
-    this.profileDescription = '',
   });
+
+  /// Hay datos suficientes para pagar por transferencia.
+  bool get hasBankInfo => bankClabe.isNotEmpty;
+
+  /// Datos de transferencia en renglones, p. ej. para WhatsApp o el PDF.
+  List<String> get bankLines => [
+    if (bankName.isNotEmpty) 'Banco: $bankName',
+    if (bankHolder.isNotEmpty) 'Titular: $bankHolder',
+    if (bankClabe.isNotEmpty) 'CLABE: $bankClabe',
+  ];
 
   Settings copyWith({
     String? bizName,
     String? bizPhone,
     String? bizAddress,
+    String? bizEmail,
+    String? bizHours,
+    String? profileDescription,
+    String? ownerName,
+    String? avatarUrl,
+    int? quoteValidityDays,
+    String? quoteTerms,
+    double? defaultPricePerM2,
+    String? bankName,
+    String? bankHolder,
+    String? bankClabe,
     bool? dark,
     bool? ai,
     bool? notifications,
-    String? avatarUrl,
-    String? profileDescription,
   }) {
     return Settings(
       bizName: bizName ?? this.bizName,
       bizPhone: bizPhone ?? this.bizPhone,
       bizAddress: bizAddress ?? this.bizAddress,
+      bizEmail: bizEmail ?? this.bizEmail,
+      bizHours: bizHours ?? this.bizHours,
+      profileDescription: profileDescription ?? this.profileDescription,
+      ownerName: ownerName ?? this.ownerName,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      quoteValidityDays: quoteValidityDays ?? this.quoteValidityDays,
+      quoteTerms: quoteTerms ?? this.quoteTerms,
+      defaultPricePerM2: defaultPricePerM2 ?? this.defaultPricePerM2,
+      bankName: bankName ?? this.bankName,
+      bankHolder: bankHolder ?? this.bankHolder,
+      bankClabe: bankClabe ?? this.bankClabe,
       dark: dark ?? this.dark,
       ai: ai ?? this.ai,
       notifications: notifications ?? this.notifications,
-      avatarUrl: avatarUrl ?? this.avatarUrl,
-      profileDescription: profileDescription ?? this.profileDescription,
     );
   }
+
+  /// Toma los datos del taller que vienen del servidor y conserva las
+  /// preferencias de este teléfono.
+  Settings withServerProfile(Map<String, dynamic> map) => Settings.fromMap({
+    ...map,
+    'dark': dark,
+    'ai': ai,
+    'notifications': notifications,
+  });
 
   Map<String, dynamic> toMap() => {
     'bizName': bizName,
     'bizPhone': bizPhone,
     'bizAddress': bizAddress,
+    'bizEmail': bizEmail,
+    'bizHours': bizHours,
+    'profileDescription': profileDescription,
+    'ownerName': ownerName,
+    'avatarUrl': avatarUrl,
+    'quoteValidityDays': quoteValidityDays,
+    'quoteTerms': quoteTerms,
+    'defaultPricePerM2': defaultPricePerM2,
+    'bankName': bankName,
+    'bankHolder': bankHolder,
+    'bankClabe': bankClabe,
     'dark': dark,
     'ai': ai,
     'notifications': notifications,
-    'avatarUrl': avatarUrl,
-    'profileDescription': profileDescription,
   };
 
   factory Settings.fromMap(Map<String, dynamic> map) {
+    final defaults = Settings();
+    String text(String key, String fallback) =>
+        map[key] is String ? map[key] as String : fallback;
     return Settings(
-      bizName: map['bizName'] ?? 'Aluminios AV',
-      bizPhone: map['bizPhone'] ?? '999 340 9396',
-      bizAddress: map['bizAddress'] ?? 'Calle 60 #450, Mérida, Yuc.',
+      bizName: text('bizName', defaults.bizName),
+      bizPhone: text('bizPhone', defaults.bizPhone),
+      bizAddress: text('bizAddress', defaults.bizAddress),
+      bizEmail: text('bizEmail', ''),
+      bizHours: text('bizHours', ''),
+      profileDescription: text('profileDescription', ''),
+      ownerName: text('ownerName', ''),
+      avatarUrl: text('avatarUrl', ''),
+      quoteValidityDays:
+          (map['quoteValidityDays'] as num?)?.toInt() ??
+          defaults.quoteValidityDays,
+      quoteTerms: text('quoteTerms', ''),
+      defaultPricePerM2:
+          (map['defaultPricePerM2'] as num?)?.toDouble() ??
+          defaults.defaultPricePerM2,
+      bankName: text('bankName', ''),
+      bankHolder: text('bankHolder', ''),
+      bankClabe: text('bankClabe', ''),
       dark: map['dark'] ?? false,
       ai: map['ai'] ?? true,
       notifications: map['notifications'] ?? true,
-      avatarUrl: map['avatarUrl'] ?? '',
-      profileDescription: map['profileDescription'] ?? '',
     );
   }
 }

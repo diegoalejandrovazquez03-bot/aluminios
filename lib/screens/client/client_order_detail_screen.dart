@@ -311,9 +311,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
       final file = await QuotePdfService.create(
         quote,
         state.clients.where((c) => c.id == quote.clientId).firstOrNull,
-        state.settings.bizName,
-        state.settings.bizPhone,
-        state.settings.bizAddress,
+        state.settings,
         (id) =>
             state.products.where((p) => p.id == id).firstOrNull?.name ??
             'Producto',

@@ -28,9 +28,7 @@ Future<void> openReceipt(
       quote,
       state.clients.where((c) => c.id == quote.clientId).firstOrNull,
       state.payments,
-      state.settings.bizName,
-      state.settings.bizPhone,
-      state.settings.bizAddress,
+      state.settings,
     );
     if (!context.mounted) return;
     await showPdfPreview(

@@ -124,9 +124,7 @@ void main() {
         quote,
         Client(id: 1, name: 'José Martínez', phone: '9993409396'),
         payments,
-        'Aluminios',
-        '999 340 9396',
-        'Mérida, Yucatán',
+        Settings(bizName: 'Aluminios', bankClabe: '012345678901234567'),
       );
       expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
     });
@@ -195,9 +193,12 @@ void main() {
         phone: '9993409396',
         address: 'Calle 60, Mérida',
       ),
-      'Aluminios',
-      '999 340 9396',
-      'Mérida, Yucatán',
+      Settings(
+        bizName: 'Aluminios',
+        quoteTerms: 'Anticipo del 50 % para iniciar la fabricación.',
+        bankName: 'BBVA',
+        bankClabe: '012345678901234567',
+      ),
       (id) => id == 1 ? 'Ventana corrediza' : 'Puerta de baño',
     );
     expect(bytes.length, greaterThan(1000));

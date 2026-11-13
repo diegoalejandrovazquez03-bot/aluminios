@@ -59,9 +59,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
   void _openProductForm([Product? product]) {
     final nameCtrl = TextEditingController(text: product?.name ?? '');
     final matCtrl = TextEditingController(text: product?.material ?? '');
-    // Producto nuevo: se propone el precio de prueba por m².
+    // Producto nuevo: se propone el precio por m² del perfil del taller.
     final priceCtrl = TextEditingController(
-      text: MoneyInput.format(product?.price ?? Product.defaultPricePerM2),
+      text: MoneyInput.format(
+        product?.price ?? widget.state.settings.defaultPricePerM2,
+      ),
     );
     final wCtrl = TextEditingController(
       text: MeasureInput.format(product?.width),

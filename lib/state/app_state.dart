@@ -936,6 +936,7 @@ class AppState extends ChangeNotifier {
       'trabajos',
       'pagos',
       'visitas',
+      'perfil',
     ];
     var expired = false;
     final results = await Future.wait(
@@ -1007,6 +1008,19 @@ class AppState extends ChangeNotifier {
       for (final raw in payments) {
         final item = _parseRecord('pago', raw, Payment.fromMap);
         if (item != null) _upsert(_payments, item, (p) => p.id);
+      }
+    }
+    // Datos del taller (teléfono, horario, cuenta para transferir...). Solo
+    // el cliente los toma del servidor: el dueño los edita en su teléfono y
+    // no se le deben reemplazar con una copia más vieja.
+    final profile = results[6];
+    if (!isAdmin && profile is List && profile.isNotEmpty) {
+      final raw = profile.firstWhere(
+        (p) => p is Map && p['id'] == 1,
+        orElse: () => profile.first,
+      );
+      if (raw is Map) {
+        _settings = _settings.withServerProfile(Map<String, dynamic>.from(raw));
       }
     }
     if (before != null) _addNoticesSince(before);

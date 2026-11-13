@@ -32,18 +32,18 @@ class QuotePdfService {
       value == value.roundToDouble() ? value.toInt().toString() : '$value';
 
   /// Arma el documento y devuelve sus bytes (sirve para la vista previa).
+  /// [business] aporta los datos del taller, la vigencia, las condiciones y
+  /// la cuenta para transferencias.
   static Future<Uint8List> bytes(
     Quote quote,
     Client? client,
-    String businessName,
-    String businessPhone,
-    String businessAddress,
+    Settings business,
     String Function(int) productName,
   ) async {
     final logo = await _loadLogo();
     final document = pw.Document(
       title: 'Cotización ${quote.folio}',
-      author: businessName,
+      author: business.bizName,
     );
     document.addPage(
       pw.MultiPage(
@@ -51,24 +51,52 @@ class QuotePdfService {
         margin: const pw.EdgeInsets.fromLTRB(36, 36, 36, 30),
         footer: _footer,
         build: (context) => [
-          _header(
-            'COTIZACIÓN',
-            quote.folio,
-            logo,
-            businessName,
-            businessPhone,
-            businessAddress,
-          ),
+          _header('COTIZACIÓN', quote.folio, logo, business),
           pw.SizedBox(height: 18),
-          _clientBlock(quote, client),
+          _clientBlock(quote, client, business),
           pw.SizedBox(height: 18),
           _itemsTable(quote, productName),
           pw.SizedBox(height: 14),
           _totals(quote),
+          ..._conditions(business),
         ],
       ),
     );
     return document.save();
+  }
+
+  /// Condiciones al pie de la cotización: vigencia, texto del taller y datos
+  /// para pagar por transferencia.
+  static List<pw.Widget> _conditions(Settings business) {
+    final lines = [
+      'Cotización válida por ${business.quoteValidityDays} días a partir de su fecha.',
+      if (business.quoteTerms.trim().isNotEmpty) business.quoteTerms.trim(),
+    ];
+    return [
+      pw.SizedBox(height: 22),
+      pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _box('CONDICIONES', [
+            for (final line in lines)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 4),
+                child: pw.Text(line, style: const pw.TextStyle(fontSize: 9)),
+              ),
+          ]),
+          if (business.hasBankInfo) ...[
+            pw.SizedBox(width: 12),
+            _box('PAGO POR TRANSFERENCIA', [
+              if (business.bankName.isNotEmpty)
+                _field('Banco', business.bankName),
+              if (business.bankHolder.isNotEmpty)
+                _field('Titular', business.bankHolder),
+              _field('CLABE', business.bankClabe),
+            ]),
+          ],
+        ],
+      ),
+    ];
   }
 
   static Future<pw.MemoryImage?> _loadLogo() async {
@@ -87,10 +115,12 @@ class QuotePdfService {
     String label,
     String code,
     pw.MemoryImage? logo,
-    String businessName,
-    String businessPhone,
-    String businessAddress,
+    Settings business,
   ) {
+    final contact = [
+      if (business.bizPhone.isNotEmpty) 'Tel. ${business.bizPhone}',
+      if (business.bizEmail.isNotEmpty) business.bizEmail,
+    ].join('  ·  ');
     return pw.Container(
       padding: const pw.EdgeInsets.all(16),
       decoration: const pw.BoxDecoration(
@@ -118,7 +148,7 @@ class QuotePdfService {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
-                  businessName.toUpperCase(),
+                  business.bizName.toUpperCase(),
                   style: pw.TextStyle(
                     color: PdfColors.white,
                     fontSize: 17,
@@ -127,16 +157,12 @@ class QuotePdfService {
                   ),
                 ),
                 pw.SizedBox(height: 4),
-                if (businessAddress.isNotEmpty)
-                  pw.Text(
-                    businessAddress,
-                    style: const pw.TextStyle(color: _aluminum, fontSize: 9),
-                  ),
-                if (businessPhone.isNotEmpty)
-                  pw.Text(
-                    'Tel. $businessPhone',
-                    style: const pw.TextStyle(color: _aluminum, fontSize: 9),
-                  ),
+                for (final line in [business.bizAddress, contact])
+                  if (line.isNotEmpty)
+                    pw.Text(
+                      line,
+                      style: const pw.TextStyle(color: _aluminum, fontSize: 9),
+                    ),
               ],
             ),
           ),
@@ -220,7 +246,11 @@ class QuotePdfService {
       _field('Dirección', client.address),
   ]);
 
-  static pw.Widget _clientBlock(Quote quote, Client? client) {
+  static pw.Widget _clientBlock(
+    Quote quote,
+    Client? client,
+    Settings business,
+  ) {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -228,6 +258,7 @@ class QuotePdfService {
         pw.SizedBox(width: 12),
         _box('DATOS', [
           _field('Fecha', quote.date),
+          _field('Vigencia', '${business.quoteValidityDays} días'),
           _field('Estado', quote.status.label),
           _field(
             'Piezas',
@@ -402,19 +433,10 @@ class QuotePdfService {
   static Future<File> create(
     Quote quote,
     Client? client,
-    String businessName,
-    String businessPhone,
-    String businessAddress,
+    Settings business,
     String Function(int) productName,
   ) async {
-    final pdfBytes = await bytes(
-      quote,
-      client,
-      businessName,
-      businessPhone,
-      businessAddress,
-      productName,
-    );
+    final pdfBytes = await bytes(quote, client, business, productName);
     return _save('cotizacion-${_safe(quote.folio)}', pdfBytes);
   }
 
@@ -436,9 +458,7 @@ class QuotePdfService {
     Quote quote,
     Client? client,
     List<Payment> allPayments,
-    String businessName,
-    String businessPhone,
-    String businessAddress,
+    Settings business,
   ) async {
     final logo = await _loadLogo();
     final code = receiptCode(payment, quote, allPayments);
@@ -449,21 +469,17 @@ class QuotePdfService {
             .fold<double>(0, (a, p) => a + p.amount);
     final balance = (quote.total - paidSoFar).clamp(0.0, double.infinity);
 
-    final document = pw.Document(title: 'Recibo $code', author: businessName);
+    final document = pw.Document(
+      title: 'Recibo $code',
+      author: business.bizName,
+    );
     document.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.letter,
         margin: const pw.EdgeInsets.fromLTRB(36, 36, 36, 30),
         footer: _footer,
         build: (context) => [
-          _header(
-            'RECIBO DE PAGO',
-            code,
-            logo,
-            businessName,
-            businessPhone,
-            businessAddress,
-          ),
+          _header('RECIBO DE PAGO', code, logo, business),
           pw.SizedBox(height: 18),
           pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -524,7 +540,7 @@ class QuotePdfService {
                   ),
                 ),
                 child: pw.Text(
-                  'Recibí · $businessName',
+                  'Recibí · ${business.bizName}',
                   textAlign: pw.TextAlign.center,
                   style: const pw.TextStyle(color: _muted, fontSize: 9),
                 ),
@@ -542,19 +558,16 @@ class QuotePdfService {
     Quote quote,
     Client? client,
     List<Payment> allPayments,
-    String businessName,
-    String businessPhone,
-    String businessAddress,
+    Settings business,
   ) async {
     final pdfBytes = await receiptBytes(
       payment,
       quote,
       client,
       allPayments,
-      businessName,
-      businessPhone,
-      businessAddress,
+      business,
     );
+
     return _save(
       'recibo-${receiptCode(payment, quote, allPayments)}',
       pdfBytes,

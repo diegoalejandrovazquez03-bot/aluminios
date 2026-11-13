@@ -238,6 +238,19 @@ class ClientProfileScreen extends StatelessWidget {
               _infoRow('Taller', state.settings.bizName),
               if (state.settings.bizPhone.isNotEmpty)
                 _infoRow('Teléfono', state.settings.bizPhone, mono: true),
+              if (state.settings.bizEmail.isNotEmpty)
+                _infoRow('Correo', state.settings.bizEmail),
+              if (state.settings.bizAddress.isNotEmpty)
+                _infoRow('Dirección', state.settings.bizAddress),
+              if (state.settings.bizHours.isNotEmpty)
+                _infoRow('Horario', state.settings.bizHours),
+              // Para pagar por transferencia sin tener que preguntar.
+              if (state.settings.hasBankInfo)
+                _infoRow(
+                  'Transferir',
+                  state.settings.bankLines.join('\n'),
+                  mono: true,
+                ),
             ],
           ),
           if (state.settings.bizPhone.isNotEmpty) ...[

@@ -159,7 +159,7 @@ class QuoteDetailScreen extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'Fecha: ${quote.date} · Vigencia: 15 días',
+                        'Fecha: ${quote.date} · Vigencia: ${state.settings.quoteValidityDays} días',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
@@ -222,9 +222,7 @@ class QuoteDetailScreen extends StatelessWidget {
                     final file = await QuotePdfService.create(
                       quote,
                       client,
-                      state.settings.bizName,
-                      state.settings.bizPhone,
-                      state.settings.bizAddress,
+                      state.settings,
                       (id) =>
                           state.products
                               .where((product) => product.id == id)
@@ -480,6 +478,7 @@ class QuoteDetailScreen extends StatelessWidget {
     required Client client,
     required double paid,
     required double balance,
+    List<String> bankLines = const [],
   }) {
     final firstName = client.name.trim().split(RegExp(r'\s+')).first;
     final b = StringBuffer()
@@ -493,10 +492,16 @@ class QuoteDetailScreen extends StatelessWidget {
     if (paid > 0) b.writeln('Abonado: ${AppState.formatMXN(paid)}');
     b
       ..writeln()
-      ..write(
-        'Puede pagar en efectivo, transferencia o tarjeta. '
-        'Cualquier duda estamos a sus órdenes. ¡Gracias!',
-      );
+      ..writeln('Puede pagar en efectivo, transferencia o tarjeta.');
+    if (bankLines.isNotEmpty) {
+      b.writeln('Datos para transferencia:');
+      for (final line in bankLines) {
+        b.writeln(line);
+      }
+    }
+    b
+      ..writeln()
+      ..write('Cualquier duda estamos a sus órdenes. ¡Gracias!');
     return b.toString();
   }
 
@@ -514,6 +519,7 @@ class QuoteDetailScreen extends StatelessWidget {
         client: client,
         paid: paid,
         balance: balance,
+        bankLines: state.settings.bankLines,
       ),
     );
     final message = await showDialog<String>(
