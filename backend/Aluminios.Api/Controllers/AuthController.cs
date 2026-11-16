@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 // en "clientes"); el administrador se crea al arrancar (Sessions.EnsureAdmin).
 [ApiController]
 [Route("api/auth")]
-public sealed partial class AuthController(Store store) : ControllerBase
+public sealed partial class AuthController(Store store, Push push) : ControllerBase
 {
     private const int MinPassword = 6;
 
@@ -145,6 +145,7 @@ public sealed partial class AuthController(Store store) : ControllerBase
             foreach (var v in store.Get(resource)
                          .Where(v => v.TryGetProperty("clientId", out var c) && c.TryGetInt64(out var id) && id == session.ClientId).ToArray())
                 store.Delete(resource, Store.IdOf(v));
+        push.ForgetAccount(session.AccountId);
         if (session.ClientId > 0) store.Delete("clientes", session.ClientId);
         store.Delete(Sessions.AccountsTable, session.AccountId);
         return NoContent();
@@ -153,7 +154,24 @@ public sealed partial class AuthController(Store store) : ControllerBase
     [HttpPost("logout")]
     public IActionResult Logout()
     {
-        if (Sessions.BearerToken(HttpContext) is { } token) Sessions.Revoke(store, token);
+        if (Sessions.BearerToken(HttpContext) is { } token)
+        {
+            Sessions.Revoke(store, token);
+            push.ForgetSession(Sessions.TokenHash(token));
+        }
+        return NoContent();
+    }
+
+    // El teléfono registra su token de Firebase para recibir notificaciones
+    // con esta sesión, junto con los avisos que el cliente quiere recibir.
+    [HttpPut("push")]
+    public IActionResult RegisterPush([FromBody] PushRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token) || request.Token.Length > 4096)
+            return BadRequest(new { error = "Token de notificaciones no válido." });
+        if (Sessions.BearerToken(HttpContext) is not { } token) return Unauthorized();
+        push.Register(HttpContext.Session(), Sessions.TokenHash(token), request.Token,
+            request.Orders ?? true, request.Payments ?? true, request.Visits ?? true);
         return NoContent();
     }
 
@@ -185,3 +203,4 @@ public sealed record UpdateProfileRequest(string Name, string Phone, string Emai
 public sealed record AvatarRequest(string AvatarUrl);
 public sealed record DeleteAccountRequest(string Password);
 public sealed record ChangePasswordRequest(string Current, string New);
+public sealed record PushRequest(string Token, bool? Orders = null, bool? Payments = null, bool? Visits = null);

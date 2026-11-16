@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../core/constants.dart';
 import '../core/app_navigation.dart';
 import '../core/app_routes.dart';
+import '../core/push_service.dart';
 import '../state/app_state.dart';
 import '../widgets/app_drawer.dart';
 import 'admin/agenda_screen.dart';
@@ -46,6 +47,7 @@ class _MainShellState extends State<MainShell> {
   static const _autoRefresh = Duration(minutes: 1);
   Timer? _refreshTimer;
   AppLifecycleListener? _lifecycle;
+  StreamSubscription<Map<String, dynamic>>? _pushTaps;
 
   @override
   void initState() {
@@ -57,12 +59,41 @@ class _MainShellState extends State<MainShell> {
     _lifecycle = AppLifecycleListener(
       onResume: () => widget.state.refreshFromServer(),
     );
+    _pushTaps = PushService.opened.listen(_openNotification);
+    final launch = PushService.takeLaunchMessage();
+    if (launch != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _openNotification(launch),
+      );
+    }
+  }
+
+  /// Abre lo que avisa una notificación tocada: primero trae los cambios
+  /// del servidor para que ya esté ahí.
+  Future<void> _openNotification(Map<String, dynamic> data) async {
+    final state = widget.state;
+    await state.refreshFromServer();
+    if (!mounted) return;
+    final quoteId = int.tryParse('${data['quoteId'] ?? ''}');
+    final requestId = int.tryParse('${data['requestId'] ?? ''}');
+    if (!state.isAdmin) {
+      // Pedidos muestra las solicitudes y las cotizaciones del cliente.
+      _navigateTo(ClientScreen.pedidos);
+    } else if (quoteId != null && state.quotes.any((q) => q.id == quoteId)) {
+      state.setSelectedQuoteId(quoteId);
+      _navigateTo(AdminScreen.detalleCotizacion);
+    } else if (requestId != null) {
+      _navigateTo(AdminScreen.solicitudes);
+    } else {
+      _navigateTo(AdminScreen.inicio);
+    }
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
     _lifecycle?.dispose();
+    _pushTaps?.cancel();
     super.dispose();
   }
 

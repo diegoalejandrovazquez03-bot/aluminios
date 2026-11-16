@@ -3,15 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/constants.dart';
+import 'core/push_service.dart';
 import 'core/theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_shell.dart';
 import 'state/app_state.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _installErrorReporting();
+  await PushService.init();
   final appState = AppState();
+  // Un aviso con la app abierta: se traen los cambios y aparece en la campana.
+  PushService.onForegroundMessage = appState.refreshFromServer;
   runApp(AluminiosApp(appState: appState));
 }
 

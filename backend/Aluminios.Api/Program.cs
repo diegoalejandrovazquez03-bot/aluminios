@@ -4,6 +4,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddSingleton(serviceProvider => new Store(serviceProvider.GetRequiredService<IWebHostEnvironment>().ContentRootPath));
+// Notificaciones en el teléfono: necesitan el archivo de cuenta de servicio de
+// Firebase en Firebase:CredentialsPath (user-secrets o variable de entorno
+// Firebase__CredentialsPath). Sin él, la API funciona igual sin enviarlas.
+builder.Services.AddSingleton<Push>();
 // Asistente (Claude): solo se registra si hay clave; la clave nunca viaja a la app.
 // Se toma de la variable de entorno ANTHROPIC_API_KEY o de user-secrets ("Anthropic:ApiKey").
 var anthropicKey = builder.Configuration["ANTHROPIC_API_KEY"] ?? builder.Configuration["Anthropic:ApiKey"];

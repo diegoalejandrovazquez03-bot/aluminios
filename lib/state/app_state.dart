@@ -8,6 +8,7 @@ import '../models/models.dart';
 import '../core/api_client.dart';
 import '../core/input_rules.dart';
 import '../core/password_hash.dart';
+import '../core/push_service.dart';
 
 /// Lo que había antes de actualizar desde el servidor, para generar avisos.
 typedef _Snapshot = ({
@@ -382,6 +383,7 @@ class AppState extends ChangeNotifier {
         noticeVisits: visits,
       ),
     );
+    _registerPush(); // El servidor también respeta estas preferencias.
     _saveToStorage();
     notifyListeners();
   }
@@ -924,6 +926,20 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     } catch (_) {}
     await refreshFromServer();
+    // Sesión guardada de antes: el teléfono vuelve a registrarse por si
+    // cambió su identificador o el servidor lo olvidó.
+    if (_session?.token.isNotEmpty ?? false) _registerPush();
+  }
+
+  /// Registra el teléfono para notificaciones con los avisos que quiere el
+  /// cliente (Perfil › Avisos); el taller recibe todos.
+  void _registerPush() {
+    final account = currentAccount;
+    PushService.register(
+      orders: account?.noticeOrders ?? true,
+      payments: account?.noticePayments ?? true,
+      visits: account?.noticeVisits ?? true,
+    );
   }
 
   /// Convierte un registro del backend; si viene incompleto o con otro
@@ -1286,6 +1302,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     // Al entrar no se generan avisos de cambios anteriores.
     await refreshFromServer(notify: false);
+    _registerPush();
     return null;
   }
 
@@ -1330,6 +1347,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     // Al entrar no se generan avisos de cambios anteriores.
     await refreshFromServer(notify: false);
+    _registerPush();
     return null;
   }
 
@@ -1350,6 +1368,7 @@ class AppState extends ChangeNotifier {
     _session = null;
     _notices = []; // Los avisos son de quien cerró la sesión.
     ApiClient.token = null;
+    PushService.forget();
     sessionMessage = message;
     _saveToStorage();
     notifyListeners();

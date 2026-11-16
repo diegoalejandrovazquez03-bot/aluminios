@@ -1,9 +1,10 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("api/{resource}")]
-public sealed class ResourcesController(Store store) : ControllerBase
+public sealed class ResourcesController(Store store, Push push) : ControllerBase
 {
     private static readonly HashSet<string> Allowed = ["clientes", "productos", "cotizaciones", "pedidos", "trabajos", "pagos", "perfil", "visitas", "solicitudes"];
 
@@ -127,6 +128,7 @@ public sealed class ResourcesController(Store store) : ControllerBase
                 return Conflict(new { error = "Esta cotización ya tiene un pedido." });
         }
         var saved = store.Save(resource, JsonSerializer.SerializeToElement(data));
+        Notify(resource, default, saved);
         return CreatedAtAction(nameof(Get), new { resource, id = Store.IdOf(saved) }, saved);
     }
     // PUT fusiona: los campos enviados reemplazan a los guardados y los omitidos se conservan (folio, fecha, etc.).
@@ -146,10 +148,82 @@ public sealed class ResourcesController(Store store) : ControllerBase
         foreach (var property in input.EnumerateObject()) data[property.Name] = property.Value.Clone();
         data["id"] = JsonSerializer.SerializeToElement(id);
         if (resource == "cotizaciones" && ApplyQuoteTotals(data) is { } error) return BadRequest(new { error });
-        return Ok(store.Save(resource, JsonSerializer.SerializeToElement(data)));
+        var updated = store.Save(resource, JsonSerializer.SerializeToElement(data));
+        Notify(resource, existing, updated);
+        return Ok(updated);
     }
     [HttpDelete("{id:long}")]
     public IActionResult Delete(string resource, long id) => !Session.IsAdmin ? Forbidden() : Allowed.Contains(resource) ? (store.Delete(resource, id) ? NoContent() : NotFound()) : NotFound();
+
+    // ---- Notificaciones en el teléfono ----
+    // Se comparan el registro anterior ([before]; vacío al crear) y el nuevo.
+    // Son los mismos avisos que la app genera por dentro.
+    private void Notify(string resource, JsonElement before, JsonElement after)
+    {
+        var created = before.ValueKind == JsonValueKind.Undefined;
+        var byAdmin = Session.IsAdmin;
+        var id = Store.IdOf(after);
+        var clientId = ClientIdOf(after);
+        var status = Str(after, "status");
+        var statusChanged = !created && Str(before, "status") != status;
+        switch (resource)
+        {
+            case "solicitudes":
+                var what = Str(after, "type").ToLowerInvariant();
+                if (created && !byAdmin)
+                    push.ToAdmins("Nueva solicitud", $"{ClientName(clientId)}: {what}.", new { requestId = id });
+                else if (statusChanged && status == "Aceptada")
+                    push.ToClient(clientId, Push.Kind.Orders, "Solicitud aceptada",
+                        $"El taller aceptó tu solicitud de {what}. Pronto recibirás la cotización.", new { requestId = id });
+                else if (statusChanged && status == "Rechazada")
+                {
+                    var reason = Str(after, "reason");
+                    push.ToClient(clientId, Push.Kind.Orders, "Solicitud no aceptada",
+                        reason.Length == 0 ? $"El taller no pudo aceptar tu solicitud de {what}." : reason, new { requestId = id });
+                }
+                break;
+            case "cotizaciones":
+                var folio = Str(after, "folio");
+                if (created && byAdmin)
+                    push.ToClient(clientId, Push.Kind.Orders, "Nueva cotización", $"Tienes una nueva cotización {folio}.", new { quoteId = id });
+                else if (statusChanged && !byAdmin)
+                    push.ToAdmins(status == "Aprobada" ? "Cotización aprobada" : "Cotización rechazada",
+                        $"{ClientName(clientId)} {(status == "Aprobada" ? "aprobó" : "rechazó")} la cotización {folio}.", new { quoteId = id });
+                else if (statusChanged)
+                    push.ToClient(clientId, Push.Kind.Orders, "Tu pedido cambió", $"Tu pedido {folio} ahora está: {status}.", new { quoteId = id });
+                if (!created && byAdmin && Count(after, "photos") > Count(before, "photos"))
+                    push.ToClient(clientId, Push.Kind.Orders, "Fotos del avance", $"El taller agregó fotos del avance de {folio}.", new { quoteId = id });
+                break;
+            case "pagos" when created && byAdmin:
+                var quote = after.TryGetProperty("quoteId", out var q) && q.TryGetInt64(out var quoteId) ? store.Find("cotizaciones", quoteId) : default;
+                if (quote.ValueKind == JsonValueKind.Undefined) break;
+                var amount = after.TryGetProperty("amount", out var am) && am.TryGetDecimal(out var value) ? value : 0;
+                push.ToClient(ClientIdOf(quote), Push.Kind.Payments, "Abono registrado",
+                    $"Se registró un abono de {amount.ToString("C2", Mxn)} en {Str(quote, "folio")}.", new { quoteId = Store.IdOf(quote) });
+                break;
+            case "visitas":
+                if (created && !byAdmin)
+                    push.ToAdmins("Visita solicitada", $"{ClientName(clientId)} pidió una visita el {Str(after, "date")}.");
+                else if (statusChanged && status == "Confirmada")
+                    push.ToClient(clientId, Push.Kind.Visits, "Visita confirmada",
+                        $"El taller confirmó tu visita del {Str(after, "date")} ({Str(after, "start")}).");
+                break;
+        }
+    }
+
+    private static readonly CultureInfo Mxn = CultureInfo.GetCultureInfo("es-MX");
+
+    private static string Str(JsonElement e, string name) =>
+        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+
+    private static int Count(JsonElement e, string name) =>
+        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Array ? v.GetArrayLength() : 0;
+
+    private string ClientName(long clientId)
+    {
+        var name = Str(store.Find("clientes", clientId), "name");
+        return name.Length == 0 ? "Un cliente" : name;
+    }
 
     // El cliente responde a SU cotización pendiente: solo puede cambiar el
     // estado a "Aprobada" o "Cancelada" (rechazo) y ningún otro campo.

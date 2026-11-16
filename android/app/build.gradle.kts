@@ -6,6 +6,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Notificaciones (Firebase): se activan al poner android/app/google-services.json
+// (fuera de git). Sin ese archivo la app compila igual, sin notificaciones.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 // Llave de firma de publicación: android/key.properties + android/aluminios-release.jks
 // (ambos fuera de git). Si no existen, release se firma con la llave de prueba.
 val keystoreProperties = Properties()
