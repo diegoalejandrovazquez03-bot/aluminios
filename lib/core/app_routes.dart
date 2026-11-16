@@ -12,6 +12,7 @@ abstract final class AdminScreen {
   static const catalogo = 7;
   static const perfil = 8;
   static const detalleCotizacion = 9;
+  static const solicitudes = 10;
 }
 
 abstract final class ClientScreen {

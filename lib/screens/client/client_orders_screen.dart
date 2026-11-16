@@ -9,9 +9,11 @@ import '../../state/app_state.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/notices_button.dart';
 import '../../widgets/server_refresh.dart';
+import '../../widgets/request_widgets.dart';
 import '../../widgets/top_bar.dart';
 import '../../widgets/ui.dart';
 import 'client_order_detail_screen.dart';
+import 'client_request_screen.dart';
 
 class ClientOrdersScreen extends StatelessWidget {
   final AppState state;
@@ -26,6 +28,16 @@ class ClientOrdersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final quotes = state.clientQuotes;
+    // Las ya cotizadas se ven como pedido; aquí solo las que siguen en
+    // revisión o no se aceptaron.
+    final requests = state.clientRequests
+        .where((r) => r.status != QuoteRequest.quoted)
+        .toList();
+    void newRequest() => openRequestForm(
+      context,
+      state,
+      onOpenCatalog: () => onNavigate(ClientScreen.catalogo),
+    );
 
     return Scaffold(
       appBar: TopBar(
@@ -37,7 +49,7 @@ class ClientOrdersScreen extends StatelessWidget {
       // Deslizar hacia abajo trae los cambios del taller (estado, abonos).
       body: RefreshIndicator(
         onRefresh: () => refreshFromServer(context, state),
-        child: quotes.isEmpty
+        child: quotes.isEmpty && requests.isEmpty
             ? ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.only(top: 80),
@@ -45,17 +57,44 @@ class ClientOrdersScreen extends StatelessWidget {
                   EmptyState(
                     icon: Icons.receipt_long_outlined,
                     title: 'No tienes pedidos registrados',
-                    message: 'Revisa el catálogo y pide tu cotización.',
-                    actionLabel: 'Explorar catálogo',
-                    onAction: () => onNavigate(ClientScreen.catalogo),
+                    message:
+                        'Describe lo que necesitas y el taller te enviará '
+                        'la cotización.',
+                    actionLabel: 'Solicitar cotización',
+                    onAction: newRequest,
                   ),
                 ],
               )
-            : ListView.builder(
+            : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
-                itemCount: quotes.length,
-                itemBuilder: (context, i) => _orderCard(context, quotes[i]),
+                children: [
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Solicitar cotización'),
+                    onPressed: newRequest,
+                  ),
+                  const SizedBox(height: 20),
+                  if (requests.isNotEmpty) ...[
+                    const SectionHeader('Mis solicitudes'),
+                    ListBox(
+                      children: [
+                        for (final r in requests)
+                          BoxRow(
+                            title: r.type,
+                            subtitle: '${r.date} · ${r.description}',
+                            trailing: RequestStatusBadge(r, forClient: true),
+                            onTap: () => showClientRequest(context, r),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                  if (quotes.isNotEmpty) ...[
+                    const SectionHeader('Mis pedidos'),
+                    for (final q in quotes) _orderCard(context, q),
+                  ],
+                ],
               ),
       ),
     );

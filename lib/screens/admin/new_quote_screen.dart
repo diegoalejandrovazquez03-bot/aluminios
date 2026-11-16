@@ -13,6 +13,7 @@ import '../../widgets/ai_chat_sheet.dart';
 import '../../widgets/app_image.dart';
 import '../../widgets/avatar_widget.dart';
 import '../../widgets/measure_field.dart';
+import '../../widgets/request_widgets.dart';
 import '../../widgets/sheet_message.dart';
 import '../../widgets/top_bar.dart';
 import '../../widgets/ui.dart';
@@ -41,12 +42,35 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
   double _discount = 0.0;
   final TextEditingController _discCtrl = TextEditingController();
 
+  /// Solicitud del cliente que atiende esta cotización, si viene de una.
+  QuoteRequest? _request;
+
   @override
   void initState() {
     super.initState();
     final preset = widget.state.presetClientId;
     // Solo se preselecciona si el cliente existe.
     if (widget.state.clients.any((c) => c.id == preset)) _clientId = preset;
+    _request = widget.state.takeQuoteRequest();
+    final r = _request;
+    if (r == null) return;
+    _clientId = r.clientId;
+    // Si la pidió del catálogo, la pieza ya va con sus medidas.
+    final product = widget.state.products
+        .where((p) => p.id == r.productId)
+        .firstOrNull;
+    if (product != null && r.width != null && r.height != null) {
+      _items.add(
+        QuoteItem.byArea(
+          productId: product.id,
+          width: r.width!,
+          height: r.height!,
+          depth: product.depth,
+          qty: r.qty,
+          pricePerM2: product.price,
+        ),
+      );
+    }
   }
 
   @override
@@ -346,6 +370,9 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
     );
 
     widget.state.addQuote(newQuote);
+    if (_request != null) {
+      widget.state.linkRequestToQuote(_request!.id, newQuote.id);
+    }
     messenger.showSnackBar(
       SnackBar(content: Text('Cotización ${newQuote.folio} guardada')),
     );
@@ -362,6 +389,10 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
+          if (_request != null) ...[
+            _requestCard(_request!),
+            const SizedBox(height: 20),
+          ],
           _stepHeader(1, 'Cliente', done: _client != null),
           _clientStep(),
           const SizedBox(height: 24),
@@ -379,6 +410,44 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
         ],
       ),
       bottomNavigationBar: _totalBar(),
+    );
+  }
+
+  /// Lo que pidió el cliente, a la vista mientras se arma la cotización.
+  Widget _requestCard(QuoteRequest r) {
+    final measures = requestMeasures(r);
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'SOLICITUD DEL CLIENTE · ${r.type.toUpperCase()}',
+            style: AppText.label(),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            r.description,
+            style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
+          ),
+          if (measures != null || r.wantsVisit) ...[
+            const SizedBox(height: 6),
+            Text(
+              [
+                ?measures,
+                if (r.wantsVisit) 'Pide visita para medir',
+              ].join(' · '),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
+          ],
+          if (r.photos.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            RequestPhotos(
+              photos: r.photos,
+              title: 'Solicitud de ${r.type.toLowerCase()}',
+            ),
+          ],
+        ],
+      ),
     );
   }
 

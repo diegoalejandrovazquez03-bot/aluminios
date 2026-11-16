@@ -771,13 +771,16 @@ class Account {
   }
 }
 
-/// Aviso para el cliente dentro de la app (cambio de estado, abono, fotos,
-/// visita confirmada). Se genera al actualizar los datos del servidor.
+/// Aviso dentro de la app. Para el cliente: cambios de sus pedidos,
+/// solicitudes, abonos, fotos y visitas. Para el taller: solicitudes nuevas
+/// y respuestas de los clientes a sus cotizaciones. Se genera al actualizar
+/// los datos del servidor.
 class AppNotice {
   final int id;
   final String text;
   final String date; // ISO 8601
   final int? quoteId;
+  final int? requestId;
   final bool read;
 
   AppNotice({
@@ -785,17 +788,25 @@ class AppNotice {
     required this.text,
     required this.date,
     this.quoteId,
+    this.requestId,
     this.read = false,
   });
 
-  AppNotice markRead() =>
-      AppNotice(id: id, text: text, date: date, quoteId: quoteId, read: true);
+  AppNotice markRead() => AppNotice(
+    id: id,
+    text: text,
+    date: date,
+    quoteId: quoteId,
+    requestId: requestId,
+    read: true,
+  );
 
   Map<String, dynamic> toMap() => {
     'id': id,
     'text': text,
     'date': date,
     'quoteId': quoteId,
+    'requestId': requestId,
     'read': read,
   };
 
@@ -804,6 +815,138 @@ class AppNotice {
     text: map['text'] ?? '',
     date: map['date'] ?? '',
     quoteId: (map['quoteId'] as num?)?.toInt(),
+    requestId: (map['requestId'] as num?)?.toInt(),
     read: map['read'] == true,
+  );
+}
+
+/// Solicitud de cotización que hace el cliente, describiendo lo que necesita
+/// o pidiendo una pieza del catálogo. El taller la acepta o la rechaza y,
+/// con esa información, arma la cotización con precio.
+class QuoteRequest {
+  /// Recién enviada: el taller aún no la revisa.
+  static const sent = 'Enviada';
+  static const accepted = 'Aceptada';
+  static const rejected = 'Rechazada';
+
+  /// El taller ya hizo la cotización ([quoteId]).
+  static const quoted = 'Cotizada';
+
+  /// Tipos que el cliente puede elegir en el formulario.
+  static const types = [
+    'Ventana',
+    'Puerta',
+    'Cancel de baño',
+    'Barandal',
+    'Domo',
+    'Otro',
+  ];
+
+  final int id;
+  final int clientId;
+  final String date; // dd/mm/aaaa, como las cotizaciones
+  final String type;
+  final String description;
+
+  /// Medidas aproximadas en cm, si el cliente las sabe.
+  final double? width;
+  final double? height;
+  final int qty;
+
+  /// Pieza del catálogo, si la pidió desde ahí.
+  final int? productId;
+
+  /// Fotos del lugar (data:image/...;base64).
+  final List<String> photos;
+
+  /// Quiere que el taller vaya a medir.
+  final bool wantsVisit;
+  final String status;
+
+  /// Motivo del rechazo, para el cliente.
+  final String reason;
+  final int? quoteId;
+
+  QuoteRequest({
+    required this.id,
+    required this.clientId,
+    required this.date,
+    required this.type,
+    required this.description,
+    this.width,
+    this.height,
+    this.qty = 1,
+    this.productId,
+    this.photos = const [],
+    this.wantsVisit = false,
+    this.status = sent,
+    this.reason = '',
+    this.quoteId,
+  });
+
+  bool get isNew => status == sent;
+
+  /// Sigue abierta: falta que el taller mande la cotización o la rechace.
+  bool get isOpen => status == sent || status == accepted;
+
+  /// Estado como lo ve el cliente.
+  String get clientLabel => switch (status) {
+    sent => 'Enviada',
+    accepted => 'Aceptada · en preparación',
+    rejected => 'No aceptada',
+    quoted => 'Cotización lista',
+    _ => status,
+  };
+
+  QuoteRequest copyWith({String? status, String? reason, int? quoteId}) =>
+      QuoteRequest(
+        id: id,
+        clientId: clientId,
+        date: date,
+        type: type,
+        description: description,
+        width: width,
+        height: height,
+        qty: qty,
+        productId: productId,
+        photos: photos,
+        wantsVisit: wantsVisit,
+        status: status ?? this.status,
+        reason: reason ?? this.reason,
+        quoteId: quoteId ?? this.quoteId,
+      );
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'clientId': clientId,
+    'date': date,
+    'type': type,
+    'description': description,
+    'width': width,
+    'height': height,
+    'qty': qty,
+    'productId': productId,
+    'photos': photos,
+    'wantsVisit': wantsVisit,
+    'status': status,
+    'reason': reason,
+    'quoteId': quoteId,
+  };
+
+  factory QuoteRequest.fromMap(Map<String, dynamic> map) => QuoteRequest(
+    id: (map['id'] as num).toInt(),
+    clientId: (map['clientId'] as num).toInt(),
+    date: map['date'] ?? '',
+    type: map['type'] ?? 'Otro',
+    description: map['description'] ?? '',
+    width: (map['width'] as num?)?.toDouble(),
+    height: (map['height'] as num?)?.toDouble(),
+    qty: (map['qty'] as num?)?.toInt() ?? 1,
+    productId: (map['productId'] as num?)?.toInt(),
+    photos: List<String>.from(map['photos'] ?? const []),
+    wantsVisit: map['wantsVisit'] == true,
+    status: map['status'] ?? sent,
+    reason: map['reason'] ?? '',
+    quoteId: (map['quoteId'] as num?)?.toInt(),
   );
 }

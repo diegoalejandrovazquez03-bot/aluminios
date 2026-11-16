@@ -5,6 +5,7 @@ import '../../core/app_routes.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
+import '../../widgets/notices_button.dart';
 import '../../widgets/sales_chart.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/server_refresh.dart';
@@ -87,6 +88,7 @@ class DashboardScreen extends StatelessWidget {
         title: 'ALUMINIOS',
         showLogo: true,
         onAvatarTap: () => onNavigate(AdminScreen.perfil), // Perfil
+        actions: [NoticesButton(state: state, onNavigate: onNavigate)],
       ),
       body: RefreshIndicator(
         // Deslizar hacia abajo trae del servidor solicitudes y cambios nuevos.
@@ -106,6 +108,44 @@ class DashboardScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
+
+            if (state.newRequestCount > 0) ...[
+              AppCard(
+                onTap: () => onNavigate(AdminScreen.solicitudes),
+                child: Row(
+                  children: [
+                    IconBadge(Icons.inbox_outlined),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            state.newRequestCount == 1
+                                ? '1 solicitud nueva'
+                                : '${state.newRequestCount} solicitudes nuevas',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.navy,
+                            ),
+                          ),
+                          Text(
+                            'Clientes que piden cotización',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: AppColors.textMuted),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
 
             MetricPanel(
               label: 'Saldo por cobrar',

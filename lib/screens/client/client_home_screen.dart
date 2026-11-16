@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/notices_button.dart';
+import 'client_request_screen.dart';
 import '../../widgets/server_refresh.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/top_bar.dart';
@@ -156,8 +157,11 @@ class ClientHomeScreen extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () =>
-                        onNavigate(ClientScreen.catalogo), // Catálogo
+                    onPressed: () => openRequestForm(
+                      context,
+                      state,
+                      onOpenCatalog: () => onNavigate(ClientScreen.catalogo),
+                    ),
                     child: const Text('Pedir cotización'),
                   ),
                 ),

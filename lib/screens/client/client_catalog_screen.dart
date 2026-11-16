@@ -135,31 +135,28 @@ class ClientCatalogScreen extends StatelessWidget {
                   return;
                 }
 
-                final newQuote = Quote(
-                  id: DateTime.now().millisecondsSinceEpoch,
-                  folio: '#${state.nextFolioNum.toString().padLeft(4, '0')}',
-                  clientId: state.session!.clientId,
-                  date: AppState.today(),
-                  status: QuoteStatus.pendiente,
-                  items: [
-                    QuoteItem.byArea(
-                      productId: product.id,
-                      width: w,
-                      height: h,
-                      depth: product.depth,
-                      qty: qty,
-                      pricePerM2: product.price,
-                    ),
-                  ],
-                  discount: 0,
+                // Va como solicitud: el taller la revisa y manda la
+                // cotización con precio (el cliente no se cotiza solo).
+                state.addRequest(
+                  QuoteRequest(
+                    id: DateTime.now().millisecondsSinceEpoch,
+                    clientId: state.session!.clientId,
+                    date: AppState.today(),
+                    type: product.name,
+                    description:
+                        'Pieza del catálogo: ${product.name} '
+                        '(${product.material}).',
+                    width: w,
+                    height: h,
+                    qty: qty,
+                    productId: product.id,
+                  ),
                 );
-
-                state.addQuote(newQuote);
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
+                  const SnackBar(
                     content: Text(
-                      'Cotización ${newQuote.folio} solicitada con éxito',
+                      'Solicitud enviada. Te avisaremos cuando el taller la revise.',
                     ),
                   ),
                 );

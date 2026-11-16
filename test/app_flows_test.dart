@@ -49,6 +49,7 @@ void main() {
   clientPortalExtrasTests();
   clientProfileExtrasTests();
   adminProfileTests();
+  quoteRequestTests();
 
   testWidgets('Cotizaciones abre con datos de ejemplo', (tester) async {
     await pumpAdminApp(tester);
@@ -343,6 +344,7 @@ void main() {
       'Anticipos y pagos': AdminScreen.pagos,
       'Agenda de visitas': AdminScreen.agenda,
       'Catálogo visual': AdminScreen.catalogo,
+      'Solicitudes': AdminScreen.solicitudes,
     };
     for (final entry in titles.entries) {
       await tester.tap(find.byTooltip('Menú'));
@@ -705,28 +707,31 @@ Future<({AppState ana, AppState admin, int quoteId})> _anaWithQuote() async {
   final ana = AppState();
   await ana.register('Ana', '9991234567', 'ana@c.com', 'secreta1');
   final clientId = ana.session!.clientId;
-  ana.addQuote(
-    Quote(
-      id: 9001,
-      folio: '#9001',
-      clientId: clientId,
-      date: '28/10/2026',
-      status: QuoteStatus.pendiente,
-      items: [
-        QuoteItem(
-          productId: 1,
-          width: 120,
-          height: 100,
-          qty: 1,
-          unitPrice: 1200,
-        ),
-      ],
-    ),
-  );
-  await Future<void>.delayed(Duration.zero);
   final admin = AppState();
   await admin.login(FakeServer.adminEmail, FakeServer.adminPassword);
-  // Vuelve a dejar el token de Ana para sus siguientes peticiones.
+  // El taller hace la cotización: el cliente ya no puede crearlas.
+  await asUser(admin, () async {
+    admin.addQuote(
+      Quote(
+        id: 9001,
+        folio: '#9001',
+        clientId: clientId,
+        date: '28/10/2026',
+        status: QuoteStatus.pendiente,
+        items: [
+          QuoteItem(
+            productId: 1,
+            width: 120,
+            height: 100,
+            qty: 1,
+            unitPrice: 1200,
+          ),
+        ],
+      ),
+    );
+  });
+  await asUser(ana, () => ana.refreshFromServer(notify: false));
+  // Deja el token de Ana para sus siguientes peticiones.
   ApiClient.token = ana.session!.token;
   return (ana: ana, admin: admin, quoteId: 9001);
 }
@@ -1205,5 +1210,215 @@ void adminProfileTests() {
     expect(state.settings.bankClabe, '072123456789012345');
     // El modo oscuro es de cada teléfono: no lo cambia el del dueño.
     expect(state.settings.dark, isFalse);
+  });
+}
+
+/// Ana (cliente) y el taller con sesión, sin solicitudes todavía.
+Future<({AppState ana, AppState admin})> _anaAndAdmin() async {
+  SharedPreferences.setMockInitialValues({});
+  final ana = AppState();
+  await ana.register('Ana', '9991234567', 'ana@c.com', 'secreta1');
+  final admin = AppState();
+  await admin.login(FakeServer.adminEmail, FakeServer.adminPassword);
+  ApiClient.token = ana.session!.token;
+  return (ana: ana, admin: admin);
+}
+
+QuoteRequest _request(AppState ana, {int? productId}) => QuoteRequest(
+  id: 7001,
+  clientId: ana.session!.clientId,
+  date: '16/11/2026',
+  type: 'Ventana',
+  description: 'Ventana corrediza para la cocina, aluminio negro.',
+  width: 120,
+  height: 100,
+  productId: productId,
+  wantsVisit: true,
+);
+
+void quoteRequestTests() {
+  test('La solicitud del cliente le llega al taller con aviso', () async {
+    final s = await _anaAndAdmin();
+    await asUser(s.ana, () async => s.ana.addRequest(_request(s.ana)));
+    final saved = server.table('solicitudes').single;
+    expect(saved['status'], 'Enviada');
+    expect(saved['wantsVisit'], isTrue);
+
+    await asUser(s.admin, () => s.admin.refreshFromServer());
+    expect(s.admin.newRequestCount, 1);
+    expect(s.admin.unreadNotices, 1);
+    expect(s.admin.notices.first.text, contains('Nueva solicitud de Ana'));
+    expect(s.admin.notices.first.requestId, 7001);
+  });
+
+  test('Aceptar y cotizar la solicitud le avisa al cliente', () async {
+    final s = await _anaAndAdmin();
+    final product = s.admin.products.first;
+    await asUser(
+      s.ana,
+      () async => s.ana.addRequest(_request(s.ana, productId: product.id)),
+    );
+    await asUser(s.admin, () async {
+      await s.admin.refreshFromServer();
+      s.admin.acceptRequest(7001);
+    });
+    await asUser(s.ana, () => s.ana.refreshFromServer());
+    expect(s.ana.clientRequests.single.status, QuoteRequest.accepted);
+    expect(s.ana.notices.first.text, contains('aceptó tu solicitud'));
+
+    // El cotizador recibe la solicitud una sola vez.
+    s.admin.startQuoteFromRequest(7001);
+    expect(s.admin.presetClientId, s.ana.session!.clientId);
+    expect(s.admin.takeQuoteRequest()?.id, 7001);
+    expect(s.admin.takeQuoteRequest(), isNull);
+
+    await asUser(s.admin, () async {
+      s.admin.addQuote(
+        Quote(
+          id: 9200,
+          folio: '#9200',
+          clientId: s.ana.session!.clientId,
+          date: '16/11/2026',
+          status: QuoteStatus.pendiente,
+          items: [
+            QuoteItem.byArea(
+              productId: product.id,
+              width: 120,
+              height: 100,
+              qty: 1,
+              pricePerM2: 100,
+            ),
+          ],
+        ),
+      );
+      s.admin.linkRequestToQuote(7001, 9200);
+    });
+    await asUser(s.ana, () => s.ana.refreshFromServer());
+    final request = s.ana.clientRequests.single;
+    expect(request.status, QuoteRequest.quoted);
+    expect(request.quoteId, 9200);
+    expect(s.ana.clientQuotes.map((q) => q.id), contains(9200));
+    expect(
+      s.ana.notices.map((n) => n.text),
+      contains('Tienes una nueva cotización #9200.'),
+    );
+
+    // El cliente la aprueba y el taller recibe el aviso.
+    await asUser(s.ana, () async => s.ana.respondToQuote(9200, approve: true));
+    await asUser(s.admin, () => s.admin.refreshFromServer());
+    expect(s.admin.notices.first.text, 'Ana aprobó la cotización #9200.');
+    expect(s.admin.notices.first.quoteId, 9200);
+  });
+
+  test('Rechazar la solicitud le avisa al cliente con el motivo', () async {
+    final s = await _anaAndAdmin();
+    await asUser(s.ana, () async => s.ana.addRequest(_request(s.ana)));
+    await asUser(s.admin, () async {
+      await s.admin.refreshFromServer();
+      s.admin.rejectRequest(7001, ' No hacemos ventanas de ese tamaño ');
+    });
+    await asUser(s.ana, () => s.ana.refreshFromServer());
+    final request = s.ana.clientRequests.single;
+    expect(request.status, QuoteRequest.rejected);
+    expect(request.reason, 'No hacemos ventanas de ese tamaño');
+    expect(s.ana.notices.first.text, contains('No hacemos ventanas'));
+  });
+
+  test('El cliente no puede crear cotizaciones con precio', () async {
+    await _anaAndAdmin();
+    await expectLater(
+      ApiClient.request(
+        'cotizaciones',
+        method: 'POST',
+        body: {'id': 1, 'status': 'Pendiente', 'items': []},
+      ),
+      throwsA(isA<ApiException>()),
+    );
+  });
+
+  testWidgets('El cliente describe lo que necesita y ve su solicitud', (
+    tester,
+  ) async {
+    final state = await pumpClientApp(tester);
+    await tester.tap(find.widgetWithText(NavigationDestination, 'Pedidos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Solicitar cotización'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Puerta'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Enviar solicitud'));
+    await tester.tap(find.text('Enviar solicitud'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cuéntanos qué necesitas'), findsOneWidget);
+    expect(state.clientRequests, isEmpty);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Descripción'),
+      'Puerta principal de aluminio con cristal esmerilado',
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Ancho'), '90');
+    await tester.ensureVisible(find.text('Enviar solicitud'));
+    await tester.tap(find.text('Enviar solicitud'));
+    await tester.pumpAndSettle();
+    // Falta el alto: si se da una medida, van las dos.
+    expect(find.text('Falta esta medida'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Alto'), '210');
+    await tester.ensureVisible(find.text('Enviar solicitud'));
+    await tester.tap(find.text('Enviar solicitud'));
+    await tester.pumpAndSettle();
+
+    final request = state.clientRequests.single;
+    expect(request.type, 'Puerta');
+    expect(request.width, 90);
+    expect(request.height, 210);
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(server.table('solicitudes'), hasLength(1));
+    expect(find.text('Mis solicitudes'), findsOneWidget);
+    expect(find.text('Enviada'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('El taller abre la solicitud y arma la cotización con ella', (
+    tester,
+  ) async {
+    final state = await pumpAdminApp(tester);
+    final client = state.clients.first;
+    final product = state.products.first;
+    state.addRequest(
+      QuoteRequest(
+        id: 7100,
+        clientId: client.id,
+        date: '16/11/2026',
+        type: product.name,
+        description: 'Pieza del catálogo: ${product.name}.',
+        width: 150,
+        height: 120,
+        qty: 2,
+        productId: product.id,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('1 solicitud nueva'), findsOneWidget);
+
+    await tester.tap(find.text('1 solicitud nueva'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pieza del catálogo: ${product.name}.'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hacer cotización'));
+    await tester.pumpAndSettle();
+
+    // El cotizador abre con el cliente, la descripción y la pieza.
+    expect(find.textContaining('SOLICITUD DEL CLIENTE'), findsOneWidget);
+    expect(find.text(client.name), findsWidgets);
+    await tester.tap(find.text('Guardar cotización'));
+    await tester.pumpAndSettle();
+    final request = state.requests.firstWhere((r) => r.id == 7100);
+    expect(request.status, QuoteRequest.quoted);
+    final quote = state.quotes.firstWhere((q) => q.id == request.quoteId);
+    expect(quote.items.single.qty, 2);
+    expect(quote.items.single.width, 150);
+    expect(tester.takeException(), isNull);
   });
 }

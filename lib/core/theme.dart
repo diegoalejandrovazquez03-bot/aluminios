@@ -7,7 +7,24 @@ import 'constants.dart';
 const double kRadius = 6;
 
 class AppText {
-  static String? get monoFamily => GoogleFonts.ibmPlexMono().fontFamily;
+  // Estilos base por grosor, creados una sola vez: se piden en cada monto y
+  // folio de cada redibujado.
+  static final _monoBase = <FontWeight, TextStyle>{};
+  static final _labelBase = GoogleFonts.ibmPlexSans(
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.9,
+  );
+
+  static String? get monoFamily => _mono(FontWeight.w400).fontFamily;
+
+  static TextStyle _mono(FontWeight weight) => _monoBase.putIfAbsent(
+    weight,
+    () => GoogleFonts.ibmPlexMono(
+      fontWeight: weight,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    ),
+  );
 
   /// Texto monoespaciado para medidas, folios y montos (cifras alineadas).
   static TextStyle mono({
@@ -15,22 +32,12 @@ class AppText {
     FontWeight fontWeight = FontWeight.w500,
     Color? color,
   }) {
-    return GoogleFonts.ibmPlexMono(
-      fontSize: fontSize,
-      fontWeight: fontWeight,
-      color: color,
-      fontFeatures: const [FontFeature.tabularFigures()],
-    );
+    return _mono(fontWeight).copyWith(fontSize: fontSize, color: color);
   }
 
   /// Rótulo pequeño en mayúsculas para encabezados de sección.
   static TextStyle label({Color color = AppColors.textMutedLight}) {
-    return GoogleFonts.ibmPlexSans(
-      fontSize: 12,
-      fontWeight: FontWeight.w500,
-      letterSpacing: 0.9,
-      color: color,
-    );
+    return _labelBase.copyWith(color: color);
   }
 }
 
@@ -41,6 +48,10 @@ class AppTheme {
       borderSide: BorderSide(color: color, width: width),
     );
   }
+
+  /// Temas ya armados: se crean una vez y no en cada redibujado de la app.
+  static final ThemeData light = lightTheme();
+  static final ThemeData dark = darkTheme();
 
   static ThemeData lightTheme() {
     final base = ThemeData(useMaterial3: true, brightness: Brightness.light);

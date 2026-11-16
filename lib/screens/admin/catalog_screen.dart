@@ -8,6 +8,7 @@ import '../../core/constants.dart';
 import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
+import '../../widgets/app_image.dart';
 import '../../widgets/image_viewer.dart';
 import '../../widgets/sheet_message.dart';
 import '../../widgets/top_bar.dart';
@@ -383,19 +384,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
     );
   }
 
-  Widget _workImage(String source, {required BoxFit fit}) {
-    if (source.startsWith('data:image/')) {
-      try {
-        return Image.memory(base64Decode(source.split(',').last), fit: fit);
-      } catch (_) {}
-    }
-    return Image.network(
-      source,
-      fit: fit,
-      errorBuilder: (context, error, stackTrace) => Container(
-        color: AppColors.lightBlue,
-        child: Icon(Icons.image_outlined, color: AppColors.textMuted),
-      ),
-    );
-  }
+  Widget _workImage(String source, {required BoxFit fit}) =>
+      AppImage(source, fit: fit);
 }

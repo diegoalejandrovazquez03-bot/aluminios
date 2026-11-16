@@ -70,38 +70,64 @@ void _installErrorReporting() {
   );
 }
 
-class AluminiosApp extends StatelessWidget {
+class AluminiosApp extends StatefulWidget {
   final AppState appState;
 
   const AluminiosApp({super.key, required this.appState});
 
   @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: appState,
-      builder: (context, _) {
-        final isDark = appState.settings.dark;
-        AppColors.dark = isDark;
+  State<AluminiosApp> createState() => _AluminiosAppState();
+}
 
-        return MaterialApp(
-          title: 'ALUMINIOS',
-          debugShowCheckedModeBanner: false,
-          // Calendarios, selectores de fecha y menús (copiar/pegar) en español.
-          locale: const Locale('es', 'MX'),
-          supportedLocales: const [Locale('es', 'MX'), Locale('es')],
-          localizationsDelegates: GlobalMaterialLocalizations.delegates,
-          theme: AppTheme.lightTheme(),
-          darkTheme: AppTheme.darkTheme(),
-          themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
-          // Cambio de modo instantáneo: los colores de AppColors cambian de
-          // golpe, así que una transición animada del tema mezclaba colores
-          // de ambos modos (y obligaba a interpolar estilos de texto).
-          themeAnimationDuration: Duration.zero,
-          home: appState.isLoggedIn
-              ? MainShell(state: appState)
-              : LoginScreen(state: appState),
-        );
-      },
+class _AluminiosAppState extends State<AluminiosApp> {
+  late bool _dark = widget.appState.settings.dark;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.appState.addListener(_onStateChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.appState.removeListener(_onStateChanged);
+    super.dispose();
+  }
+
+  // La app completa (tema, idioma, navegación) solo se rehace al cambiar de
+  // modo claro/oscuro; los demás cambios redibujan solo la pantalla abierta.
+  void _onStateChanged() {
+    if (widget.appState.settings.dark != _dark) {
+      setState(() => _dark = widget.appState.settings.dark);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = widget.appState;
+    final isDark = _dark;
+    AppColors.dark = isDark;
+
+    return MaterialApp(
+      title: 'ALUMINIOS',
+      debugShowCheckedModeBanner: false,
+      // Calendarios, selectores de fecha y menús (copiar/pegar) en español.
+      locale: const Locale('es', 'MX'),
+      supportedLocales: const [Locale('es', 'MX'), Locale('es')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+      // Cambio de modo instantáneo: los colores de AppColors cambian de
+      // golpe, así que una transición animada del tema mezclaba colores
+      // de ambos modos (y obligaba a interpolar estilos de texto).
+      themeAnimationDuration: Duration.zero,
+      home: ListenableBuilder(
+        listenable: appState,
+        builder: (context, _) => appState.isLoggedIn
+            ? MainShell(state: appState)
+            : LoginScreen(state: appState),
+      ),
     );
   }
 }

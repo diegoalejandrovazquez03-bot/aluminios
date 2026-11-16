@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
 
-import 'dart:convert';
-
 import '../../core/constants.dart';
 import '../../core/input_rules.dart';
 import '../../core/app_routes.dart';
@@ -11,6 +9,7 @@ import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/sheet_message.dart';
 import '../../widgets/measure_field.dart';
+import '../../widgets/app_image.dart';
 import '../../widgets/top_bar.dart';
 import '../../widgets/ui.dart';
 
@@ -411,22 +410,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
             child: SizedBox(
               width: 68,
               height: 60,
-              child: p.img.startsWith('data:image/')
-                  ? Image.memory(
-                      base64Decode(p.img.split(',').last),
-                      fit: BoxFit.cover,
-                    )
-                  : Image.network(
-                      p.img,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        color: AppColors.lightBlue,
-                        child: Icon(
-                          Icons.image_outlined,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    ),
+              child: AppImage(p.img, width: 68, height: 60),
             ),
           ),
           const SizedBox(width: 14),

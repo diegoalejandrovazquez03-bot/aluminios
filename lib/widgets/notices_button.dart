@@ -1,16 +1,55 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_routes.dart';
 import '../core/constants.dart';
+import '../screens/admin/requests_screen.dart';
 import '../screens/client/client_order_detail_screen.dart';
+import '../screens/client/client_request_screen.dart';
 import '../state/app_state.dart';
 
-/// Campana de avisos del cliente: muestra cuántos hay sin leer y, al
-/// tocarla, la lista (y los marca como leídos). Un aviso de un pedido abre
-/// ese pedido.
+/// Campana de avisos: muestra cuántos hay sin leer y, al tocarla, la lista
+/// (y los marca como leídos). Un aviso de un pedido o de una solicitud la
+/// abre.
 class NoticesButton extends StatelessWidget {
   final AppState state;
 
-  const NoticesButton({super.key, required this.state});
+  /// Navegación del taller (abre el detalle de la cotización); el cliente
+  /// abre sus pedidos encima de la pantalla actual.
+  final Function(int)? onNavigate;
+
+  const NoticesButton({super.key, required this.state, this.onNavigate});
+
+  /// Lo que abre un aviso, o null si no lleva a ningún lado.
+  VoidCallback? _target(BuildContext context, int? quoteId, int? requestId) {
+    final quote = state.quotes.where((q) => q.id == quoteId).firstOrNull;
+    final request = state.requests.where((r) => r.id == requestId).firstOrNull;
+    if (quote != null) {
+      if (state.isAdmin) {
+        return () {
+          state.setSelectedQuoteId(quote.id);
+          onNavigate?.call(AdminScreen.detalleCotizacion);
+        };
+      }
+      return () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ClientOrderDetailScreen(quote: quote, state: state),
+        ),
+      );
+    }
+    if (request != null) {
+      if (state.isAdmin) {
+        return () => showAdminRequest(
+          context,
+          state,
+          request,
+          onNavigate: onNavigate ?? (_) {},
+        );
+      }
+      return () => showClientRequest(context, request);
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +95,9 @@ class NoticesButton extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
                   child: Text(
-                    'No tienes avisos. Aquí verás los cambios de tus pedidos, abonos y visitas.',
+                    state.isAdmin
+                        ? 'No tienes avisos. Aquí verás las solicitudes nuevas y las respuestas de tus clientes.'
+                        : 'No tienes avisos. Aquí verás los cambios de tus pedidos, solicitudes, abonos y visitas.',
                     style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                   ),
                 )
@@ -70,11 +111,7 @@ class NoticesButton extends StatelessWidget {
                         Divider(height: 1, color: AppColors.divider),
                     itemBuilder: (_, i) {
                       final n = notices[i];
-                      final quote = n.quoteId == null
-                          ? null
-                          : state.quotes
-                                .where((q) => q.id == n.quoteId)
-                                .firstOrNull;
+                      final open = _target(context, n.quoteId, n.requestId);
                       return ListTile(
                         leading: Icon(
                           n.read
@@ -99,25 +136,17 @@ class NoticesButton extends StatelessWidget {
                             color: AppColors.textMuted,
                           ),
                         ),
-                        trailing: quote == null
+                        trailing: open == null
                             ? null
                             : Icon(
                                 Icons.chevron_right,
                                 color: AppColors.textMuted,
                               ),
-                        onTap: quote == null
+                        onTap: open == null
                             ? null
                             : () {
                                 Navigator.pop(ctx);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ClientOrderDetailScreen(
-                                      quote: quote,
-                                      state: state,
-                                    ),
-                                  ),
-                                );
+                                open();
                               },
                       );
                     },

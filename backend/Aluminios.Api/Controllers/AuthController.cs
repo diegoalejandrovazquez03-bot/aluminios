@@ -125,7 +125,8 @@ public sealed partial class AuthController(Store store) : ControllerBase
     }
 
     // Eliminar la cuenta (requisito de Google Play). Pide la contraseña.
-    // Se borran la cuenta, sus sesiones, la ficha del cliente y sus visitas.
+    // Se borran la cuenta, sus sesiones, la ficha del cliente, sus visitas y
+    // sus solicitudes de cotización (traen fotos y descripciones de su casa).
     // Las cotizaciones y pagos se conservan como registro comercial del taller.
     [HttpDelete("me")]
     public IActionResult DeleteMe([FromBody] DeleteAccountRequest request)
@@ -140,9 +141,10 @@ public sealed partial class AuthController(Store store) : ControllerBase
         foreach (var s in store.Get(Sessions.SessionsTable)
                      .Where(s => s.TryGetProperty("accountId", out var a) && a.GetInt64() == session.AccountId).ToArray())
             store.Delete(Sessions.SessionsTable, Store.IdOf(s));
-        foreach (var v in store.Get("visitas")
-                     .Where(v => v.TryGetProperty("clientId", out var c) && c.TryGetInt64(out var id) && id == session.ClientId).ToArray())
-            store.Delete("visitas", Store.IdOf(v));
+        foreach (var resource in new[] { "visitas", "solicitudes" })
+            foreach (var v in store.Get(resource)
+                         .Where(v => v.TryGetProperty("clientId", out var c) && c.TryGetInt64(out var id) && id == session.ClientId).ToArray())
+                store.Delete(resource, Store.IdOf(v));
         if (session.ClientId > 0) store.Delete("clientes", session.ClientId);
         store.Delete(Sessions.AccountsTable, session.AccountId);
         return NoContent();

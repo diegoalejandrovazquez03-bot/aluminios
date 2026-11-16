@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'dart:convert';
-
 import '../core/constants.dart';
+import 'app_image.dart';
 
 class AvatarWidget extends StatelessWidget {
   final String name;
@@ -34,21 +33,12 @@ class AvatarWidget extends StatelessWidget {
     if (imageUrl != null && imageUrl!.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(size / 2),
-        child: imageUrl!.startsWith('data:image/')
-            ? Image.memory(
-                base64Decode(imageUrl!.split(',').last),
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => _fallback(),
-              )
-            : Image.network(
-                imageUrl!,
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => _fallback(),
-              ),
+        child: AppImage(
+          imageUrl!,
+          width: size,
+          height: size,
+          fallback: _fallback(),
+        ),
       );
     }
     return _fallback();

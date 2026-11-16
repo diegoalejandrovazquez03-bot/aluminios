@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -16,6 +18,7 @@ import 'admin/products_screen.dart';
 import 'admin/profile_screen.dart';
 import 'admin/quote_detail_screen.dart';
 import 'admin/quotes_screen.dart';
+import 'admin/requests_screen.dart';
 import 'client/client_catalog_screen.dart';
 import 'client/client_home_screen.dart';
 import 'client/client_orders_screen.dart';
@@ -37,6 +40,31 @@ class _MainShellState extends State<MainShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   int get _currentScreenIndex => _history.last;
+
+  // Avisos sin tener que deslizar: los datos del servidor se traen cada
+  // minuto mientras la app está abierta y al volver a ella.
+  static const _autoRefresh = Duration(minutes: 1);
+  Timer? _refreshTimer;
+  AppLifecycleListener? _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshTimer = Timer.periodic(
+      _autoRefresh,
+      (_) => widget.state.refreshFromServer(),
+    );
+    _lifecycle = AppLifecycleListener(
+      onResume: () => widget.state.refreshFromServer(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _lifecycle?.dispose();
+    super.dispose();
+  }
 
   void _navigateTo(int index) {
     if (index == _currentScreenIndex) return;
@@ -167,6 +195,9 @@ class _MainShellState extends State<MainShell> {
           break;
         case AdminScreen.perfil:
           currentScreen = ProfileScreen(state: state, onNavigate: _navigateTo);
+          break;
+        case AdminScreen.solicitudes:
+          currentScreen = RequestsScreen(state: state, onNavigate: _navigateTo);
           break;
         case AdminScreen.detalleCotizacion:
           currentScreen = QuoteDetailScreen(

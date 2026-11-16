@@ -5,12 +5,14 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/{resource}")]
 public sealed class ResourcesController(Store store) : ControllerBase
 {
-    private static readonly HashSet<string> Allowed = ["clientes", "productos", "cotizaciones", "pedidos", "trabajos", "pagos", "perfil", "visitas"];
+    private static readonly HashSet<string> Allowed = ["clientes", "productos", "cotizaciones", "pedidos", "trabajos", "pagos", "perfil", "visitas", "solicitudes"];
 
     // ---- Permisos por rol ----
     // El administrador ve y modifica todo. Un cliente solo ve su ficha, sus
-    // cotizaciones, pedidos, pagos y visitas, además del catálogo; solo puede
-    // crear cotizaciones y visitas a su nombre y editar su propia ficha.
+    // cotizaciones, pedidos, pagos, visitas y solicitudes, además del
+    // catálogo; solo puede crear solicitudes de cotización y visitas a su
+    // nombre y editar su propia ficha. Las cotizaciones con precio las hace
+    // el taller: si el cliente las creara, podría aprobarlas él mismo.
     private SessionInfo Session => HttpContext.Session();
 
     private ObjectResult Forbidden() => StatusCode(403, new { error = "No tienes permiso para esta acción." });
@@ -31,7 +33,7 @@ public sealed class ResourcesController(Store store) : ControllerBase
         {
             "productos" or "trabajos" or "perfil" => true,
             "clientes" => Store.IdOf(item) == session.ClientId,
-            "cotizaciones" or "visitas" => ClientIdOf(item) == session.ClientId,
+            "cotizaciones" or "visitas" or "solicitudes" => ClientIdOf(item) == session.ClientId,
             "pagos" or "pedidos" => item.TryGetProperty("quoteId", out var q) && (ownQuotes ?? OwnQuoteIds()).Contains(q.GetRawText()),
             _ => false,
         };
@@ -89,11 +91,16 @@ public sealed class ResourcesController(Store store) : ControllerBase
         var data = input.Deserialize<Dictionary<string, JsonElement>>()!;
         if (!Session.IsAdmin)
         {
-            if (resource != "cotizaciones" && resource != "visitas") return Forbidden();
-            // Un cliente solo crea registros a su nombre.
+            if (resource != "solicitudes" && resource != "visitas") return Forbidden();
+            // Un cliente solo crea registros a su nombre y siempre por revisar.
             data["clientId"] = JsonSerializer.SerializeToElement(Session.ClientId);
             if (resource == "visitas") data["status"] = JsonSerializer.SerializeToElement("Solicitada");
-            if (resource == "cotizaciones") data["status"] = JsonSerializer.SerializeToElement("Pendiente");
+            if (resource == "solicitudes")
+            {
+                data["status"] = JsonSerializer.SerializeToElement("Enviada");
+                data.Remove("quoteId");
+                data.Remove("reason");
+            }
         }
         if (resource == "cotizaciones")
         {
@@ -101,6 +108,13 @@ public sealed class ResourcesController(Store store) : ControllerBase
             data.TryAdd("status", JsonSerializer.SerializeToElement("Pendiente"));
             data.TryAdd("date", JsonSerializer.SerializeToElement(DateTime.UtcNow.ToString("O")));
             data.TryAdd("folio", JsonSerializer.SerializeToElement($"COT-{DateTime.UtcNow:yyyyMMddHHmmss}"));
+        }
+        if (resource == "solicitudes")
+        {
+            if (!data.TryGetValue("description", out var description) || description.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(description.GetString()))
+                return BadRequest(new { error = "Describe lo que necesitas." });
+            data.TryAdd("status", JsonSerializer.SerializeToElement("Enviada"));
+            data.TryAdd("date", JsonSerializer.SerializeToElement(DateTime.UtcNow.ToString("yyyy-MM-dd")));
         }
         if (resource == "pedidos")
         {

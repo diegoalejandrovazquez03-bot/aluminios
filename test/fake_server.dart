@@ -150,6 +150,7 @@ class FakeServer {
           }
           sessions.removeWhere((_, a) => identical(a, me));
           table('visitas').removeWhere((v) => v['clientId'] == clientId);
+          table('solicitudes').removeWhere((v) => v['clientId'] == clientId);
           table('clientes').removeWhere((c) => c['id'] == clientId);
           accounts.remove(me);
           return _json(204, null);
@@ -168,7 +169,9 @@ class FakeServer {
       return switch (resource) {
         'productos' || 'trabajos' || 'perfil' => true,
         'clientes' => row['id'] == clientId,
-        'cotizaciones' || 'visitas' => row['clientId'] == clientId,
+        'cotizaciones' ||
+        'visitas' ||
+        'solicitudes' => row['clientId'] == clientId,
         'pagos' || 'pedidos' => ownQuotes.contains(row['quoteId']),
         _ => false,
       };
@@ -187,11 +190,17 @@ class FakeServer {
     if (method == 'POST') {
       final data = Map<String, dynamic>.from(body);
       if (!isAdmin) {
-        if (resource != 'cotizaciones' && resource != 'visitas') {
+        // Las cotizaciones con precio solo las hace el taller.
+        if (resource != 'solicitudes' && resource != 'visitas') {
           return _error(403, 'No tienes permiso para esta acción.');
         }
         data['clientId'] = clientId;
         if (resource == 'visitas') data['status'] = 'Solicitada';
+        if (resource == 'solicitudes') {
+          data['status'] = 'Enviada';
+          data.remove('quoteId');
+          data.remove('reason');
+        }
       }
       if (rows.any((r) => r['id'] == data['id'])) {
         return _error(409, 'Ya existe');

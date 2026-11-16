@@ -39,6 +39,11 @@ class AppDrawer extends StatelessWidget {
         'idx': AdminScreen.nuevaCotizacion,
       },
       {
+        'title': 'Solicitudes',
+        'icon': Icons.inbox_rounded,
+        'idx': AdminScreen.solicitudes,
+      },
+      {
         'title': 'Cotizaciones',
         'icon': Icons.receipt_long_rounded,
         'idx': AdminScreen.cotizaciones,
@@ -203,6 +208,12 @@ class AppDrawer extends StatelessWidget {
                           fontSize: 14,
                         ),
                       ),
+                      trailing:
+                          isAdmin &&
+                              it['idx'] == AdminScreen.solicitudes &&
+                              state.newRequestCount > 0
+                          ? Badge(label: Text('${state.newRequestCount}'))
+                          : null,
                       onTap: () {
                         Navigator.pop(context); // close drawer
                         onSelectScreen(it['idx'] as int);

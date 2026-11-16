@@ -9,6 +9,15 @@ import '../core/api_client.dart';
 import '../core/input_rules.dart';
 import '../core/password_hash.dart';
 
+/// Lo que había antes de actualizar desde el servidor, para generar avisos.
+typedef _Snapshot = ({
+  Map<int, QuoteStatus> status,
+  Map<int, int> photos,
+  Set<int> payments,
+  Map<int, String> visits,
+  Map<int, String> requests,
+});
+
 class AppState extends ChangeNotifier {
   static const String _keyAccounts = 'alu_accounts';
   static const String _keySession = 'alu_client_session';
@@ -21,6 +30,7 @@ class AppState extends ChangeNotifier {
   static const String _keyClients = 'alu_clients';
   static const String _keyVisits = 'alu_visits';
   static const String _keyNotices = 'alu_notices';
+  static const String _keyRequests = 'alu_requests';
 
   AppSession? _session;
   Settings _settings = Settings();
@@ -31,6 +41,7 @@ class AppState extends ChangeNotifier {
   List<Payment> _payments = [];
   List<Visit> _visits = [];
   List<AppNotice> _notices = [];
+  List<QuoteRequest> _requests = [];
   List<Work> _works = [];
   List<Map<String, dynamic>> _trash = [];
   List<Map<String, dynamic>> get trash => _trash;
@@ -51,7 +62,21 @@ class AppState extends ChangeNotifier {
   List<Payment> get payments => _payments;
   List<Visit> get visits => _visits;
 
-  /// Avisos del cliente, del más reciente al más antiguo.
+  /// Solicitudes de cotización, de la más reciente a la más antigua (el
+  /// cliente solo recibe las suyas del servidor).
+  List<QuoteRequest> get requests =>
+      List.of(_requests)..sort((a, b) => b.id.compareTo(a.id));
+
+  /// Solicitudes del cliente con sesión iniciada.
+  List<QuoteRequest> get clientRequests {
+    final id = _session?.clientId;
+    return requests.where((r) => r.clientId == id).toList();
+  }
+
+  /// Solicitudes que el taller aún no revisa.
+  int get newRequestCount => _requests.where((r) => r.isNew).length;
+
+  /// Avisos de quien tiene la sesión, del más reciente al más antiguo.
   List<AppNotice> get notices =>
       List.of(_notices)..sort((a, b) => b.date.compareTo(a.date));
   int get unreadNotices => _notices.where((n) => !n.read).length;
@@ -390,6 +415,7 @@ class AppState extends ChangeNotifier {
     _accounts.removeWhere((a) => a.clientId == clientId);
     _clients.removeWhere((c) => c.id == clientId);
     _visits.removeWhere((v) => v.clientId == clientId);
+    _requests.removeWhere((r) => r.clientId == clientId);
     _endSession('Tu cuenta fue eliminada.');
     return null;
   }
@@ -888,6 +914,12 @@ class AppState extends ChangeNotifier {
             .map((e) => AppNotice.fromMap(Map<String, dynamic>.from(e)))
             .toList();
       }
+      final rawRequests = prefs.getString(_keyRequests);
+      if (rawRequests != null) {
+        _requests = (jsonDecode(rawRequests) as List)
+            .map((e) => QuoteRequest.fromMap(Map<String, dynamic>.from(e)))
+            .toList();
+      }
 
       notifyListeners();
     } catch (_) {}
@@ -931,7 +963,16 @@ class AppState extends ChangeNotifier {
   /// Con [notify] (por defecto) genera avisos para el cliente comparando lo
   /// que había con lo nuevo; al iniciar sesión no se generan.
   /// Devuelve false si no se pudo conectar.
-  Future<bool> refreshFromServer({bool notify = true}) async {
+  Future<bool> refreshFromServer({bool notify = true}) {
+    // Si ya hay una actualización en curso (p. ej. la automática y la de
+    // deslizar coinciden), se espera esa en lugar de pedir todo dos veces.
+    return _refreshing ??= _refresh(notify: notify)
+        .whenComplete(() => _refreshing = null);
+  }
+
+  Future<bool>? _refreshing;
+
+  Future<bool> _refresh({required bool notify}) async {
     if (_session == null || _session!.token.isEmpty) return false;
     final resources = [
       'clientes',
@@ -941,6 +982,7 @@ class AppState extends ChangeNotifier {
       'pagos',
       'visitas',
       'perfil',
+      'solicitudes',
     ];
     var expired = false;
     final results = await Future.wait(
@@ -963,7 +1005,7 @@ class AppState extends ChangeNotifier {
     }
     if (results.every((r) => r == null)) return false;
 
-    final before = notify && !isAdmin ? _snapshot() : null;
+    final before = notify ? _snapshot() : null;
     final clients = results[0];
     final products = results[1];
     final quotes = results[2];
@@ -1014,6 +1056,13 @@ class AppState extends ChangeNotifier {
         if (item != null) _upsert(_payments, item, (p) => p.id);
       }
     }
+    final requests = results[7];
+    if (requests is List) {
+      for (final raw in requests) {
+        final item = _parseRecord('solicitud', raw, QuoteRequest.fromMap);
+        if (item != null) _upsert(_requests, item, (r) => r.id);
+      }
+    }
     // Datos del taller (teléfono, horario, cuenta para transferir...). Solo
     // el cliente los toma del servidor: el dueño los edita en su teléfono y
     // no se le deben reemplazar con una copia más vieja.
@@ -1033,43 +1082,37 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
-  /// Estado de los pedidos, abonos y visitas del cliente antes de actualizar.
-  ({
-    Map<int, QuoteStatus> status,
-    Map<int, int> photos,
-    Set<int> payments,
-    Map<int, String> visits,
-  })
-  _snapshot() {
-    final mine = clientQuotes;
+  /// Estado de pedidos, abonos, visitas y solicitudes antes de actualizar
+  /// (del cliente, o de todos para el taller).
+  _Snapshot _snapshot() {
+    final quotes = isAdmin ? _quotes : clientQuotes;
     return (
-      status: {for (final q in mine) q.id: q.status},
-      photos: {for (final q in mine) q.id: q.photos.length},
+      status: {for (final q in quotes) q.id: q.status},
+      photos: {for (final q in quotes) q.id: q.photos.length},
       payments: _payments.map((p) => p.id).toSet(),
       visits: {for (final v in _visits) v.id: v.status},
+      requests: {for (final r in _requests) r.id: r.status},
     );
   }
 
-  /// Avisos por lo que cambió desde [before] (solo datos del cliente).
-  void _addNoticesSince(
-    ({
-      Map<int, QuoteStatus> status,
-      Map<int, int> photos,
-      Set<int> payments,
-      Map<int, String> visits,
-    })
-    before,
-  ) {
+  /// Avisos por lo que cambió desde [before].
+  void _addNoticesSince(_Snapshot before) {
     final now = DateTime.now();
     var seq = 0;
-    void add(String text, {int? quoteId}) => _notices.add(
+    void add(String text, {int? quoteId, int? requestId}) => _notices.add(
       AppNotice(
         id: now.microsecondsSinceEpoch + seq++,
         text: text,
         date: now.toIso8601String(),
         quoteId: quoteId,
+        requestId: requestId,
       ),
     );
+
+    if (isAdmin) {
+      _addAdminNotices(before, add);
+      return;
+    }
 
     final mine = clientQuotes;
     final myQuoteIds = mine.map((q) => q.id).toSet();
@@ -1116,50 +1159,106 @@ class AppState extends ChangeNotifier {
         add('El taller confirmó tu visita del ${v.date} (${v.start}).');
       }
     }
+    for (final r in wantsOrders ? clientRequests : const <QuoteRequest>[]) {
+      final old = before.requests[r.id];
+      if (old == null || old == r.status) continue;
+      final what = r.type.toLowerCase();
+      if (r.status == QuoteRequest.accepted) {
+        add(
+          'El taller aceptó tu solicitud de $what. Pronto recibirás la cotización.',
+          requestId: r.id,
+        );
+      } else if (r.status == QuoteRequest.rejected) {
+        add(
+          r.reason.isEmpty
+              ? 'El taller no pudo aceptar tu solicitud de $what.'
+              : 'El taller no pudo aceptar tu solicitud de $what: ${r.reason}',
+          requestId: r.id,
+        );
+      }
+      // "Cotizada" ya genera el aviso de cotización nueva.
+    }
   }
 
-  Future<void> _saveToStorage() async {
+  /// Avisos del taller: solicitudes nuevas y respuestas de los clientes a
+  /// sus cotizaciones.
+  void _addAdminNotices(
+    _Snapshot before,
+    void Function(String text, {int? quoteId, int? requestId}) add,
+  ) {
+    String nameOf(int clientId) =>
+        _clients.where((c) => c.id == clientId).firstOrNull?.name ??
+        'Un cliente';
+    for (final r in _requests) {
+      if (before.requests.containsKey(r.id) || !r.isNew) continue;
+      add(
+        'Nueva solicitud de ${nameOf(r.clientId)}: ${r.type.toLowerCase()}.',
+        requestId: r.id,
+      );
+    }
+    for (final q in _quotes) {
+      final old = before.status[q.id];
+      if (old != QuoteStatus.pendiente || old == q.status) continue;
+      if (q.status == QuoteStatus.aprobada) {
+        add(
+          '${nameOf(q.clientId)} aprobó la cotización ${q.folio}.',
+          quoteId: q.id,
+        );
+      } else if (q.status == QuoteStatus.cancelada) {
+        add(
+          '${nameOf(q.clientId)} rechazó la cotización ${q.folio}.',
+          quoteId: q.id,
+        );
+      }
+    }
+  }
+
+  // Lo último que quedó escrito en el teléfono, por clave (null = borrado).
+  // Solo se reescribe lo que cambió: cada escritura reescribe el archivo de
+  // preferencias completo, fotos incluidas.
+  final Map<String, String?> _lastSaved = {};
+  Future<void>? _saving;
+  bool _saveAgain = false;
+
+  /// Guarda los datos en el teléfono. Si ya hay un guardado en curso, los
+  /// cambios que lleguen mientras tanto se juntan en un solo guardado más.
+  Future<void> _saveToStorage() {
+    if (_saving != null) {
+      _saveAgain = true;
+      return _saving!;
+    }
+    return _saving = _writeStorage().whenComplete(() => _saving = null);
+  }
+
+  Future<void> _writeStorage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      if (_session != null) {
-        await prefs.setString(_keySession, jsonEncode(_session!.toMap()));
-      } else {
-        await prefs.remove(_keySession);
-      }
-      await prefs.setString(_keySettings, jsonEncode(_settings.toMap()));
-      await prefs.setString(
-        _keyAccounts,
-        jsonEncode(_accounts.map((a) => a.toMap()).toList()),
-      );
-      await prefs.setString(
-        _keyQuotes,
-        jsonEncode(_quotes.map((q) => q.toMap()).toList()),
-      );
-      await prefs.setString(
-        _keyProducts,
-        jsonEncode(_products.map((p) => p.toMap()).toList()),
-      );
-      await prefs.setString(_keyTrash, jsonEncode(_trash));
-      await prefs.setString(
-        _keyWorks,
-        jsonEncode(_works.map((work) => work.toMap()).toList()),
-      );
-      await prefs.setString(
-        _keyPayments,
-        jsonEncode(_payments.map((payment) => payment.toMap()).toList()),
-      );
-      await prefs.setString(
-        _keyClients,
-        jsonEncode(_clients.map((client) => client.toMap()).toList()),
-      );
-      await prefs.setString(
-        _keyVisits,
-        jsonEncode(_visits.map((visit) => visit.toMap()).toList()),
-      );
-      await prefs.setString(
-        _keyNotices,
-        jsonEncode(_notices.map((n) => n.toMap()).toList()),
-      );
+      do {
+        _saveAgain = false;
+        final data = <String, String?>{
+          _keySession: _session == null ? null : jsonEncode(_session!.toMap()),
+          _keySettings: jsonEncode(_settings.toMap()),
+          _keyAccounts: jsonEncode(_accounts.map((a) => a.toMap()).toList()),
+          _keyQuotes: jsonEncode(_quotes.map((q) => q.toMap()).toList()),
+          _keyProducts: jsonEncode(_products.map((p) => p.toMap()).toList()),
+          _keyTrash: jsonEncode(_trash),
+          _keyWorks: jsonEncode(_works.map((w) => w.toMap()).toList()),
+          _keyPayments: jsonEncode(_payments.map((p) => p.toMap()).toList()),
+          _keyClients: jsonEncode(_clients.map((c) => c.toMap()).toList()),
+          _keyVisits: jsonEncode(_visits.map((v) => v.toMap()).toList()),
+          _keyNotices: jsonEncode(_notices.map((n) => n.toMap()).toList()),
+          _keyRequests: jsonEncode(_requests.map((r) => r.toMap()).toList()),
+        };
+        for (final MapEntry(:key, :value) in data.entries) {
+          if (_lastSaved.containsKey(key) && _lastSaved[key] == value) continue;
+          if (value == null) {
+            await prefs.remove(key);
+          } else {
+            await prefs.setString(key, value);
+          }
+          _lastSaved[key] = value;
+        }
+      } while (_saveAgain);
     } catch (_) {}
   }
 
@@ -1584,6 +1683,71 @@ class AppState extends ChangeNotifier {
     }
     return (amount: amount, quotes: count);
   }
+
+  // Solicitudes de cotización
+  /// El cliente envía una solicitud; el taller la verá al actualizar.
+  void addRequest(QuoteRequest r) {
+    _requests.add(r);
+    _sync('solicitudes', r.toMap());
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  void _setRequest(int id, QuoteRequest Function(QuoteRequest) change) {
+    final idx = _requests.indexWhere((r) => r.id == id);
+    if (idx == -1) return;
+    final updated = change(_requests[idx]);
+    _requests[idx] = updated;
+    _sync(
+      'solicitudes',
+      {
+        'status': updated.status,
+        'reason': updated.reason,
+        'quoteId': updated.quoteId,
+      },
+      method: 'PUT',
+      id: id,
+    );
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  /// El taller acepta la solicitud: el cliente sabe que ya se prepara su
+  /// cotización.
+  void acceptRequest(int id) =>
+      _setRequest(id, (r) => r.copyWith(status: QuoteRequest.accepted));
+
+  /// El taller no la acepta; [reason] se le muestra al cliente.
+  void rejectRequest(int id, String reason) => _setRequest(
+    id,
+    (r) => r.copyWith(status: QuoteRequest.rejected, reason: reason.trim()),
+  );
+
+  /// Solicitud con la que se abrirá el cotizador (ver [takeQuoteRequest]).
+  int? _quoteRequestId;
+
+  /// Prepara el cotizador para atender la solicitud [id]: cliente, pieza del
+  /// catálogo y descripción ya puestos.
+  void startQuoteFromRequest(int id) {
+    final r = _requests.where((r) => r.id == id).firstOrNull;
+    if (r == null) return;
+    _quoteRequestId = id;
+    _presetClientId = r.clientId;
+  }
+
+  /// La solicitud pendiente de cotizar, una sola vez: si el cotizador se
+  /// abre después por otro camino, ya no aparece.
+  QuoteRequest? takeQuoteRequest() {
+    final id = _quoteRequestId;
+    _quoteRequestId = null;
+    return _requests.where((r) => r.id == id).firstOrNull;
+  }
+
+  /// La cotización [quoteId] atiende la solicitud [requestId].
+  void linkRequestToQuote(int requestId, int quoteId) => _setRequest(
+    requestId,
+    (r) => r.copyWith(status: QuoteRequest.quoted, quoteId: quoteId),
+  );
 
   // CRUD Visits
   /// Agenda una visita y la envía al servidor: así la solicitud del cliente
