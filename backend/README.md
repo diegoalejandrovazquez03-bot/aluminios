@@ -5,7 +5,7 @@ Backend de la app móvil **aluminios_app** (Flutter, en `C:\aluminios_app`). Se 
 ## Ejecutar
 
 ```bash
-cd C:\aluminios_api
+cd C:\aluminios_app\backend
 
 # Solo para emulador Android / Chrome / Windows en esta PC
 dotnet run --project Aluminios.Api --launch-profile local
@@ -86,3 +86,27 @@ La cuenta `admin@aluminieros.com` se crea la **primera vez** que arranca el serv
 - Producción: variable de entorno `Admin__Password` (o `Admin__Email` para cambiar el correo). Si no se define, se genera una contraseña aleatoria y se muestra **una sola vez** en la consola.
 
 Cambiar la configuración después no modifica una cuenta ya creada.
+
+## Publicar en la nube (Render + Supabase, gratis)
+
+Los datos se guardan en PostgreSQL (Supabase) cuando existe la conexión
+`ConnectionStrings__Database`; si no, en `Aluminios.Api/Data/database.json`.
+La tabla `registros (tabla, id, datos jsonb)` se crea sola al arrancar y, si
+está vacía, se le suben los datos que haya en `database.json`.
+
+1. **Supabase** → proyecto → **Connect** → *Session pooler* → copiar la cadena
+   (formato `Host=...;Port=5432;Database=postgres;Username=postgres.xxxx;Password=...;SSL Mode=Require`).
+2. **Render** → New → **Web Service** → conectar el repositorio de GitHub.
+   - Root Directory: `backend` · Runtime: **Docker** · Plan: **Free**
+   - Variables de entorno:
+     | Nombre | Valor |
+     |---|---|
+     | `ConnectionStrings__Database` | la cadena de Supabase |
+     | `Admin__Password` | contraseña del administrador (solo se usa si aún no existe) |
+     | `Firebase__CredentialsPath` | `/etc/secrets/firebase-admin.json` (subirlo en *Secret Files*) |
+     | `ANTHROPIC_API_KEY` | opcional, para el asistente |
+3. Comprobar `https://<nombre>.onrender.com/` → `{"name":"Aluminios API","status":"ok"}`.
+4. Compilar la app: `flutter build apk --release --dart-define=API_BASE_URL=https://<nombre>.onrender.com`
+
+Plan gratis: Render se duerme tras 15 min sin uso (la primera petición tarda
+~30–60 s) y Supabase pausa el proyecto tras una semana sin actividad.
