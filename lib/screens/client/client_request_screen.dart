@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/dates.dart';
+
 import '../../core/constants.dart';
 import '../../core/input_rules.dart';
 import '../../core/theme.dart';
@@ -264,7 +266,7 @@ void showClientRequest(BuildContext context, QuoteRequest r) {
             ),
             const SizedBox(height: 2),
             Text(
-              'Enviada el ${AppState.displayDate(r.date)}',
+              'Enviada el ${displayDate(r.date)}',
               style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
             if (r.status == QuoteRequest.rejected) ...[

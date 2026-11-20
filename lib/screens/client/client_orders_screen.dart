@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/dates.dart';
+
 import '../../core/theme.dart';
 
 import '../../core/constants.dart';
@@ -39,12 +41,7 @@ class ClientOrdersScreen extends StatelessWidget {
     );
 
     return Scaffold(
-      appBar: TopBar(
-        title: 'Mis pedidos',
-        showLogo: true,
-
-        onAvatarTap: () => onNavigate(ClientScreen.perfil),
-      ),
+      appBar: TopBar(title: 'Mis pedidos', showLogo: true),
       // Deslizar hacia abajo trae los cambios del taller (estado, abonos).
       body: RefreshIndicator(
         onRefresh: () => refreshFromServer(context, state),
@@ -81,7 +78,8 @@ class ClientOrdersScreen extends StatelessWidget {
                         for (final r in requests)
                           BoxRow(
                             title: r.type,
-                            subtitle: '${AppState.displayDate(r.date)} · ${r.description}',
+                            subtitle:
+                                '${displayDate(r.date)} · ${r.description}',
                             trailing: RequestStatusBadge(r, forClient: true),
                             onTap: () => showClientRequest(context, r),
                           ),
@@ -102,8 +100,7 @@ class ClientOrdersScreen extends StatelessWidget {
   /// Tarjeta de un pedido: folio y estado arriba; fecha, piezas, saldo
   /// restante y total abajo.
   Widget _orderCard(BuildContext context, Quote q) {
-    final paid = state.paidOf(q.id);
-    final saldo = (q.total - paid).clamp(0.0, double.infinity);
+    final saldo = state.remainingOf(q);
 
     return AppCard(
       margin: const EdgeInsets.only(bottom: 10),
@@ -136,7 +133,7 @@ class ClientOrdersScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${AppState.displayDate(q.date)} · ${AppState.plural(q.items.length, 'pieza', 'piezas')}',
+            '${displayDate(q.date)} · ${AppState.plural(q.items.length, 'pieza', 'piezas')}',
             style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
           Divider(height: 20, color: AppColors.divider),

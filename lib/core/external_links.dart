@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'input_rules.dart';
+
 /// Abre llamadas, WhatsApp u otros enlaces externos.
 /// No usa canLaunchUrl: en Android 11+ devuelve false aunque la app exista
 /// si el paquete no está declarado en `<queries>`. Se intenta abrir directo
 /// y, si falla, se avisa al usuario.
 class ExternalLinks {
-  static String _digits(String phone) => phone.replaceAll(RegExp(r'\D'), '');
+  static String _digits(String phone) => PhoneInput.digits(phone);
 
   static Future<void> call(BuildContext context, String phone) => _open(
     context,

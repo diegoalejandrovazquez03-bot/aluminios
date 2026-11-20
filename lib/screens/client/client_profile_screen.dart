@@ -44,15 +44,8 @@ class ClientProfileScreen extends StatelessWidget {
               q.status != QuoteStatus.cancelada,
         )
         .length;
-    var balance = 0.0;
-    for (final q in quotes) {
-      if (q.status == QuoteStatus.cancelada) continue;
-      final rem = q.total - state.paidOf(q.id);
-      if (rem > 0) balance += rem;
-    }
-    final upcomingVisits = state.visits
-        .where((v) => v.clientId == state.session?.clientId && !v.isDone)
-        .length;
+    final balance = state.clientBalance;
+    final upcomingVisits = state.clientVisits.where((v) => !v.isDone).length;
 
     return Scaffold(
       appBar: const TopBar(title: 'Mi perfil', showAvatar: false),
@@ -474,9 +467,7 @@ class ClientProfileScreen extends StatelessWidget {
     String address,
   ) {
     final nameCtrl = TextEditingController(text: name);
-    final phoneCtrl = TextEditingController(
-      text: phone.replaceAll(RegExp(r'\D'), ''),
-    );
+    final phoneCtrl = TextEditingController(text: PhoneInput.digits(phone));
     final emailCtrl = TextEditingController(text: email);
     final addressCtrl = TextEditingController(text: address);
     bool saving = false;

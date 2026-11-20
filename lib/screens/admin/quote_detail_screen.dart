@@ -1,6 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
+import '../../core/dates.dart';
+
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme.dart';
@@ -161,7 +164,7 @@ class QuoteDetailScreen extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'Fecha: ${AppState.displayDate(quote.date)} · Vigencia: ${state.settings.quoteValidityDays} días',
+                        'Fecha: ${displayDate(quote.date)} · Vigencia: ${state.settings.quoteValidityDays} días',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
@@ -225,12 +228,7 @@ class QuoteDetailScreen extends StatelessWidget {
                       quote,
                       client,
                       state.settings,
-                      (id) =>
-                          state.products
-                              .where((product) => product.id == id)
-                              .firstOrNull
-                              ?.name ??
-                          'Producto',
+                      (id) => state.productById(id)?.name ?? 'Producto',
                     );
                     if (ctx.mounted) Navigator.pop(ctx);
                     if (context.mounted) {
@@ -269,9 +267,7 @@ class QuoteDetailScreen extends StatelessWidget {
       helpText: 'Fecha estimada de entrega',
     );
     if (picked == null) return;
-    final iso =
-        '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-    state.updateQuote(quote.copyWith(deliveryDate: iso));
+    state.updateQuote(quote.copyWith(deliveryDate: isoDate(picked)));
   }
 
   @override
@@ -289,17 +285,12 @@ class QuoteDetailScreen extends StatelessWidget {
       );
     }
 
-    final client = state.clients
-        .where((c) => c.id == quote.clientId)
-        .firstOrNull;
+    final client = state.clientById(quote.clientId);
     final paid = state.paidOf(quote.id);
-    final saldo = (quote.total - paid).clamp(0.0, double.infinity);
+    final saldo = state.remainingOf(quote);
 
     return Scaffold(
-      appBar: TopBar(
-        title: 'Cotización',
-        onAvatarTap: () => onNavigate(AdminScreen.perfil),
-      ),
+      appBar: TopBar(title: 'Cotización'),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -321,7 +312,7 @@ class QuoteDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Fecha: ${AppState.displayDate(quote.date)}',
+                        'Fecha: ${displayDate(quote.date)}',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
@@ -350,7 +341,7 @@ class QuoteDetailScreen extends StatelessWidget {
           const SizedBox(height: 12),
 
           // Avance del pedido (desde que se aprueba) y fecha de entrega.
-          if (OrderProgress.stepOf(quote.status) != null) ...[
+          if (quote.isOrder) ...[
             AppCard(
               child: OrderProgress(
                 quote: quote,
@@ -482,9 +473,7 @@ class QuoteDetailScreen extends StatelessWidget {
   /// Renglón de una pieza: cantidad, producto, medidas, precio unitario y
   /// subtotal.
   Widget _itemRow(QuoteItem item) {
-    final name =
-        state.products.where((p) => p.id == item.productId).firstOrNull?.name ??
-        'Pieza de aluminio';
+    final name = state.productById(item.productId)?.name ?? 'Pieza de aluminio';
     return BoxRow(
       leading: Container(
         width: 36,
@@ -622,31 +611,7 @@ class QuoteDetailScreen extends StatelessWidget {
           ListBox(
             children: [
               for (final p in payments)
-                BoxRow(
-                  leading: IconBadge(
-                    Icons.check_circle_rounded,
-                    color: AppColors.done,
-                    background: AppColors.completedBg,
-                  ),
-                  title: AppState.formatMXN(p.amount),
-                  monoTitle: true,
-                  subtitle: '${AppState.displayDate(p.date)} · ${p.method}',
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Recibo',
-                        style: TextStyle(fontSize: 12, color: AppColors.blue),
-                      ),
-                      Icon(
-                        Icons.chevron_right,
-                        size: 18,
-                        color: AppColors.blue,
-                      ),
-                    ],
-                  ),
-                  onTap: () => openReceipt(context, state, p),
-                ),
+                PaymentRow(state: state, payment: p, title: 'Abono'),
             ],
           ),
         if (canPay && client != null && client.phone.isNotEmpty) ...[

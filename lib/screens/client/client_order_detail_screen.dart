@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/dates.dart';
+
 import '../../core/theme.dart';
 import '../../core/constants.dart';
 import '../../core/quote_pdf_service.dart';
@@ -33,11 +35,9 @@ class ClientOrderDetailScreen extends StatelessWidget {
 
   Widget _build(BuildContext context) {
     // Versión actual de la cotización (no la copia con la que se abrió).
-    final quote =
-        state.quotes.where((q) => q.id == this.quote.id).firstOrNull ??
-        this.quote;
+    final quote = state.quoteById(this.quote.id) ?? this.quote;
     final paid = state.paidOf(quote.id);
-    final saldo = (quote.total - paid).clamp(0.0, double.infinity);
+    final saldo = state.remainingOf(quote);
     final quotePayments = state.payments
         .where((p) => p.quoteId == quote.id)
         .toList();
@@ -64,7 +64,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Fecha de solicitud: ${AppState.displayDate(quote.date)}',
+                        'Fecha de solicitud: ${displayDate(quote.date)}',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
@@ -83,7 +83,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
             _responseCard(context, quote),
             const SizedBox(height: 16),
           ],
-          if (OrderProgress.stepOf(quote.status) != null) ...[
+          if (quote.isOrder) ...[
             const SectionHeader('Avance de tu pedido'),
             AppCard(child: OrderProgress(quote: quote)),
             const SizedBox(height: 16),
@@ -123,27 +123,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
             ListBox(
               children: [
                 for (final p in quotePayments)
-                  // Tocar un abono abre su recibo.
-                  BoxRow(
-                    title: AppState.displayDate(p.date),
-                    subtitle: p.method,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        MoneyText(
-                          AppState.formatMXN(p.amount),
-                          color: AppColors.done,
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.receipt_long_outlined,
-                          size: 16,
-                          color: AppColors.textMuted,
-                        ),
-                      ],
-                    ),
-                    onTap: () => openReceipt(context, state, p),
-                  ),
+                  PaymentRow(state: state, payment: p, title: 'Abono'),
               ],
             ),
             const SizedBox(height: 16),
@@ -164,9 +144,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
 
   /// Renglón de una pieza: cantidad, nombre, medidas y subtotal.
   Widget _itemRow(QuoteItem item) {
-    final prod = state.products
-        .where((p) => p.id == item.productId)
-        .firstOrNull;
+    final prod = state.productById(item.productId);
     return BoxRow(
       leading: Container(
         width: 36,
@@ -316,11 +294,9 @@ class ClientOrderDetailScreen extends StatelessWidget {
     try {
       final file = await QuotePdfService.create(
         quote,
-        state.clients.where((c) => c.id == quote.clientId).firstOrNull,
+        state.clientById(quote.clientId),
         state.settings,
-        (id) =>
-            state.products.where((p) => p.id == id).firstOrNull?.name ??
-            'Producto',
+        (id) => state.productById(id)?.name ?? 'Producto',
       );
       if (context.mounted) {
         await showPdfPreview(

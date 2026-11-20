@@ -1,6 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
+import '../core/dates.dart';
+
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -90,7 +93,6 @@ class AppState extends ChangeNotifier {
   }
 
   List<Work> get works => _works;
-  int get selectedQuoteId => _selectedQuoteId;
   String get quoteFilter => _quoteFilter;
   int? get presetClientId => _presetClientId;
 
@@ -102,13 +104,18 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  /// Buscar por id (null si no existe). Un solo lugar para no repetir el
+  /// `where(...).firstOrNull` en cada pantalla.
+  Client? clientById(int? id) =>
+      id == null ? null : _clients.where((c) => c.id == id).firstOrNull;
+  Product? productById(int? id) =>
+      id == null ? null : _products.where((p) => p.id == id).firstOrNull;
+  Quote? quoteById(int? id) =>
+      id == null ? null : _quotes.where((q) => q.id == id).firstOrNull;
+
   /// Cliente de la sesión, o null. Nunca se sustituye por otro cliente: eso
   /// mostraría pedidos y saldos de otra persona.
-  Client? get currentClient {
-    final id = _session?.clientId;
-    if (id == null) return null;
-    return _clients.where((c) => c.id == id).firstOrNull;
-  }
+  Client? get currentClient => clientById(_session?.clientId);
 
   /// Cuenta del cliente con sesión iniciada (null para el administrador).
   Account? get currentAccount {
@@ -428,6 +435,13 @@ class AppState extends ChangeNotifier {
     return _quotes.where((q) => q.clientId == cId).toList();
   }
 
+  /// Visitas del cliente con sesión iniciada.
+  List<Visit> get clientVisits {
+    final cId = _session?.clientId;
+    if (cId == null) return [];
+    return _visits.where((v) => v.clientId == cId).toList();
+  }
+
   int get nextFolioNum {
     int max = 0;
     for (final q in _quotes) {
@@ -472,9 +486,7 @@ class AppState extends ChangeNotifier {
     if (q.items.isEmpty) return 'Sin piezas';
     final counts = <String, int>{};
     for (final item in q.items) {
-      final name =
-          _products.where((p) => p.id == item.productId).firstOrNull?.name ??
-          'Pieza';
+      final name = productById(item.productId)?.name ?? 'Pieza';
       counts[name] = (counts[name] ?? 0) + item.qty;
     }
     final parts = [
@@ -485,36 +497,9 @@ class AppState extends ChangeNotifier {
     return '${parts.take(2).join(', ')} y ${parts.length - 2} más';
   }
 
-  /// Cualquier fecha guardada (dd/mm/aaaa o ISO) mostrada como dd/mm/aaaa.
-  static String displayDate(String date) {
-    final d = _parseDate(date);
-    if (d == null) return date;
-    final local = d.isUtc ? d.toLocal() : d;
-    return '${local.day.toString().padLeft(2, '0')}/'
-        '${local.month.toString().padLeft(2, '0')}/${local.year}';
-  }
+  static String today() => dmyDate(DateTime.now());
 
-  static DateTime? _parseDate(String date) {
-    final dmy = RegExp(r'^(\d{1,2})/(\d{1,2})/(\d{4})$').firstMatch(date.trim());
-    if (dmy != null) {
-      return DateTime(
-        int.parse(dmy.group(3)!),
-        int.parse(dmy.group(2)!),
-        int.parse(dmy.group(1)!),
-      );
-    }
-    return DateTime.tryParse(date.trim());
-  }
-
-  static String today() {
-    final now = DateTime.now();
-    return "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
-  }
-
-  static String todayIso() {
-    final now = DateTime.now();
-    return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-  }
+  static String todayIso() => isoDate(DateTime.now());
 
   AppState() {
     _initDefaultData();
@@ -1095,6 +1080,7 @@ class AppState extends ChangeNotifier {
         final item = _parseRecord('cotización', raw, Quote.fromMap);
         if (item != null) _upsert(_quotes, item, (q) => q.id);
       }
+      if (isAdmin) _renumberLegacyFolios();
     }
     if (works is List) {
       for (final raw in works) {
@@ -1134,6 +1120,23 @@ class AppState extends ChangeNotifier {
     await _saveToStorage();
     notifyListeners();
     return true;
+  }
+
+  /// Cotizaciones con folio fuera del consecutivo (p. ej. "#20261120004860",
+  /// de un error ya corregido) reciben el siguiente COT-0000 libre, en el
+  /// orden en que se crearon, y se guarda en el servidor. Solo lo hace el
+  /// taller; si no hay ninguna, no hace nada.
+  void _renumberLegacyFolios() {
+    final legacy =
+        _quotes.where((q) => Quote.folioNumber(q.folio) == null).toList()
+          ..sort((a, b) => a.id.compareTo(b.id));
+    for (final q in legacy) {
+      final renumbered = q.copyWith(
+        folio: 'COT-${nextFolioNum.toString().padLeft(4, '0')}',
+      );
+      _quotes[_quotes.indexOf(q)] = renumbered;
+      _sync('cotizaciones', _quoteBody(renumbered), method: 'PUT', id: q.id);
+    }
   }
 
   /// Estado de pedidos, abonos, visitas y solicitudes antes de actualizar
@@ -1240,9 +1243,7 @@ class AppState extends ChangeNotifier {
     _Snapshot before,
     void Function(String text, {int? quoteId, int? requestId}) add,
   ) {
-    String nameOf(int clientId) =>
-        _clients.where((c) => c.id == clientId).firstOrNull?.name ??
-        'Un cliente';
+    String nameOf(int clientId) => clientById(clientId)?.name ?? 'Un cliente';
     for (final r in _requests) {
       if (before.requests.containsKey(r.id) || !r.isNew) continue;
       add(
@@ -1520,23 +1521,24 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Lo que se manda al servidor al editar una cotización (las fotos van
+  /// aparte). Completo, por si el servidor no la tiene y hay que crearla.
+  static Map<String, dynamic> _quoteBody(Quote q) => {
+    'id': q.id,
+    'folio': q.folio,
+    'clientId': q.clientId,
+    'date': q.date,
+    'status': q.status.label,
+    'discount': q.discount,
+    'items': q.items.map((item) => item.toMap()).toList(),
+    'deliveryDate': q.deliveryDate,
+  };
+
   void updateQuote(Quote q) {
     final idx = _quotes.indexWhere((x) => x.id == q.id);
     if (idx != -1) {
       _quotes[idx] = q;
-      _sync(
-        'cotizaciones',
-        {
-          'id': q.id,
-          'clientId': q.clientId,
-          'date': q.date,
-          'status': q.status.label,
-          'discount': q.discount,
-          'items': q.items.map((item) => item.toMap()).toList(),
-        },
-        method: 'PUT',
-        id: q.id,
-      );
+      _sync('cotizaciones', _quoteBody(q), method: 'PUT', id: q.id);
       _saveToStorage();
       notifyListeners();
     }
@@ -1721,6 +1723,16 @@ class AppState extends ChangeNotifier {
         .fold(0.0, (acc, p) => acc + p.amount);
   }
 
+  /// Lo que falta pagar de una cotización (nunca negativo).
+  double remainingOf(Quote q) =>
+      (q.total - paidOf(q.id)).clamp(0.0, double.infinity);
+
+  /// Saldo del cliente con sesión: lo que debe de sus cotizaciones que no
+  /// están canceladas. Inicio, Mis pagos y Mi perfil muestran esta cifra.
+  double get clientBalance => clientQuotes
+      .where((q) => q.status != QuoteStatus.cancelada)
+      .fold(0.0, (sum, q) => sum + remainingOf(q));
+
   /// Saldo por cobrar: lo que falta pagar de las cotizaciones ya aprobadas
   /// (las pendientes aún no son venta y las canceladas no cuentan). Inicio y
   /// Pagos usan este mismo cálculo para mostrar la misma cifra.
@@ -1732,7 +1744,7 @@ class AppState extends ChangeNotifier {
           q.status == QuoteStatus.pendiente) {
         continue;
       }
-      final rem = q.total - paidOf(q.id);
+      final rem = remainingOf(q);
       if (rem > 0) {
         amount += rem;
         count++;

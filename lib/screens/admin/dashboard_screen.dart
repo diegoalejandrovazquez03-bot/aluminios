@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/dates.dart';
+
 import '../../core/constants.dart';
 import '../../core/app_routes.dart';
 import '../../core/theme.dart';
@@ -20,30 +22,6 @@ class DashboardScreen extends StatelessWidget {
     required this.state,
     required this.onNavigate,
   });
-
-  static const _weekdays = [
-    'Lunes',
-    'Martes',
-    'Miércoles',
-    'Jueves',
-    'Viernes',
-    'Sábado',
-    'Domingo',
-  ];
-  static const _months = [
-    'enero',
-    'febrero',
-    'marzo',
-    'abril',
-    'mayo',
-    'junio',
-    'julio',
-    'agosto',
-    'septiembre',
-    'octubre',
-    'noviembre',
-    'diciembre',
-  ];
 
   static bool _isThisMonth(String date, DateTime now) {
     final d = parseAppDate(date);
@@ -79,16 +57,11 @@ class DashboardScreen extends StatelessWidget {
         .toList();
 
     final dateLabel =
-        '${_weekdays[now.weekday - 1]} ${now.day} de ${_months[now.month - 1]}'
+        '${weekdayNames[now.weekday - 1]} ${now.day} de ${monthNames[now.month - 1]}'
             .toUpperCase();
 
     return Scaffold(
-      appBar: TopBar(
-        title: 'ALUMINIOS',
-        showLogo: true,
-        onAvatarTap: () => onNavigate(AdminScreen.perfil), // Perfil
-
-      ),
+      appBar: TopBar(title: 'ALUMINIOS', showLogo: true),
       body: RefreshIndicator(
         // Deslizar hacia abajo trae del servidor solicitudes y cambios nuevos.
         onRefresh: () => refreshFromServer(context, state),
@@ -179,7 +152,7 @@ class DashboardScreen extends StatelessWidget {
                   ? 'En 1 cotización aprobada'
                   : 'En $quotesWithBalance cotizaciones aprobadas',
               // Las tres cifras son solo del mes en curso.
-              figuresLabel: 'Este mes · ${_months[now.month - 1]}',
+              figuresLabel: 'Este mes · ${monthNames[now.month - 1]}',
               figures: [
                 ('Cotizado', AppState.formatMXN(quotedMonth)),
                 ('Aprobado', AppState.formatMXN(approvedMonth)),
@@ -288,7 +261,7 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _visitRow(Visit v) {
-    final client = state.clients.where((c) => c.id == v.clientId).firstOrNull;
+    final client = state.clientById(v.clientId);
     return BoxRow(
       leading: SizedBox(
         width: 44,
@@ -308,16 +281,9 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _quoteRow(Quote q) {
-    final client = state.clients.where((c) => c.id == q.clientId).firstOrNull;
+    final client = state.clientById(q.clientId);
     return BoxRow(
-      leading: Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          color: StatusBadge.dotColor(q.status),
-          shape: BoxShape.circle,
-        ),
-      ),
+      leading: StatusBadge.dot(q.status),
       title: client?.name ?? 'Cliente',
       subtitle: '${q.folio} · ${q.status.label}',
       trailing: MoneyText(AppState.formatMXN(q.total)),

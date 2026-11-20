@@ -24,6 +24,13 @@ class StatusBadge extends StatelessWidget {
     }
   }
 
+  /// Solo el punto de color (8 px), para renglones de lista.
+  static Widget dot(QuoteStatus status) => Container(
+    width: 8,
+    height: 8,
+    decoration: BoxDecoration(color: dotColor(status), shape: BoxShape.circle),
+  );
+
   static Color textColor(QuoteStatus status, {bool isDark = false}) {
     if (isDark) return AppColors.textOnDark;
     if (status == QuoteStatus.pendiente) return AppColors.pendingText;
@@ -37,14 +44,7 @@ class StatusBadge extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: dotColor(status),
-            shape: BoxShape.circle,
-          ),
-        ),
+        dot(status),
         const SizedBox(width: 6),
         Text(
           status.label,

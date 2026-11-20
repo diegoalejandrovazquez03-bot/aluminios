@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/dates.dart';
+
 import '../../core/constants.dart';
 import '../../core/app_routes.dart';
 import '../../core/external_links.dart';
@@ -28,15 +30,6 @@ class ClientHomeScreen extends StatelessWidget {
     required this.onNavigate,
   });
 
-  String _orderTitle(Quote q) {
-    if (q.items.isEmpty) return 'Pedido ${q.folio}';
-    final first = state.products
-        .where((p) => p.id == q.items.first.productId)
-        .firstOrNull;
-    final name = first?.name ?? 'Pedido';
-    return q.items.length > 1 ? '$name y ${q.items.length - 1} más' : name;
-  }
-
   void _openOrder(BuildContext context, Quote q) {
     state.setSelectedQuoteId(q.id);
     Navigator.push(
@@ -62,21 +55,10 @@ class ClientHomeScreen extends StatelessWidget {
         .firstOrNull;
     final others = quotes.where((q) => q != active).take(3).toList();
 
-    double balance = 0;
-    for (final q in quotes) {
-      if (q.status == QuoteStatus.cancelada) continue;
-      final rem = q.total - state.paidOf(q.id);
-      if (rem > 0) balance += rem;
-    }
+    final balance = state.clientBalance;
 
     return Scaffold(
-      appBar: TopBar(
-        title: 'ALUMINIOS',
-        showLogo: true,
-
-        onAvatarTap: () =>
-            onNavigate(ClientScreen.perfil), // Perfil del cliente
-      ),
+      appBar: TopBar(title: 'ALUMINIOS', showLogo: true),
       body: RefreshIndicator(
         // Deslizar hacia abajo trae los cambios del taller (estados, abonos, visitas).
         onRefresh: () => refreshFromServer(context, state),
@@ -280,8 +262,7 @@ class ClientHomeScreen extends StatelessWidget {
   /// "Mis visitas": las próximas (de la más cercana a la más lejana) y las
   /// 3 realizadas más recientes, con su estado.
   List<Widget> _visitsSection() {
-    final clientId = state.session?.clientId;
-    final mine = state.visits.where((v) => v.clientId == clientId).toList();
+    final mine = state.clientVisits;
     final upcoming = mine.where((v) => !v.isDone).toList()
       ..sort(
         (a, b) => '${a.date} ${a.start}'.compareTo('${b.date} ${b.start}'),
@@ -310,7 +291,7 @@ class ClientHomeScreen extends StatelessWidget {
             BoxRow(
               title: v.type,
               subtitle: [
-                '${_visitDate(v.date)} · ${v.start}–${v.end}',
+                '${displayDate(v.date)} · ${v.start}–${v.end}',
                 if (v.place.isNotEmpty) v.place,
               ].join('\n'),
               trailing: VisitStatusChip(visit: v),
@@ -321,15 +302,9 @@ class ClientHomeScreen extends StatelessWidget {
     ];
   }
 
-  static String _visitDate(String iso) {
-    final d = DateTime.tryParse(iso);
-    if (d == null) return iso;
-    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-  }
-
   Widget _activeOrderCard(BuildContext context, Quote q) {
     final paid = state.paidOf(q.id);
-    final rem = (q.total - paid).clamp(0, double.infinity);
+    final rem = state.remainingOf(q);
     final progress = q.total > 0 ? (paid / q.total).clamp(0.0, 1.0) : 0.0;
     final fg = AppColors.navy;
 
@@ -355,7 +330,7 @@ class ClientHomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      _orderTitle(q),
+                      state.itemsSummary(q),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -364,7 +339,7 @@ class ClientHomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${q.folio} · ${AppState.displayDate(q.date)}',
+                      '${q.folio} · ${displayDate(q.date)}',
                       style: AppText.mono(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
@@ -378,7 +353,7 @@ class ClientHomeScreen extends StatelessWidget {
               StatusBadge(status: q.status),
             ],
           ),
-          if (OrderProgress.stepOf(q.status) != null) ...[
+          if (q.isOrder) ...[
             const SizedBox(height: 16),
             OrderProgress(quote: q),
           ],
@@ -425,15 +400,8 @@ class ClientHomeScreen extends StatelessWidget {
   Widget _orderRow(BuildContext context, Quote q) {
     return BoxRow(
       onTap: () => _openOrder(context, q),
-      leading: Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          color: StatusBadge.dotColor(q.status),
-          shape: BoxShape.circle,
-        ),
-      ),
-      title: _orderTitle(q),
+      leading: StatusBadge.dot(q.status),
+      title: state.itemsSummary(q),
       subtitle: '${q.folio} · ${q.status.label}',
       trailing: MoneyText(AppState.formatMXN(q.total)),
     );

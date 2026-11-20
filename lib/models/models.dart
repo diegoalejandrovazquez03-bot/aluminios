@@ -264,6 +264,10 @@ class Quote {
   double get discountAmount => (subtotal * discount) / 100.0;
   double get total => subtotal - discountAmount;
 
+  /// Ya es pedido: se aprobó y no se canceló (tiene avance y abonos).
+  bool get isOrder =>
+      status != QuoteStatus.pendiente && status != QuoteStatus.cancelada;
+
   Quote copyWith({
     int? id,
     String? folio,

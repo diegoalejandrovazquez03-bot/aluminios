@@ -94,10 +94,13 @@ class PhoneInput {
     return null;
   }
 
+  /// Solo los dígitos: "(614) 123-4567" → "6141234567".
+  static String digits(String phone) => phone.replaceAll(RegExp(r'\D'), '');
+
   /// Para mostrar: "6141234567" → "614 123 4567". Si no son 10 dígitos se
   /// deja como está.
   static String display(String phone) {
-    final d = phone.replaceAll(RegExp(r'\D'), '');
+    final d = digits(phone);
     if (d.length != length) return phone;
     return '${d.substring(0, 3)} ${d.substring(3, 6)} ${d.substring(6)}';
   }
@@ -138,4 +141,16 @@ class AccountInput {
     }
     return null;
   }
+}
+
+/// Para buscar: minúsculas y sin acentos, así "Martínez" se encuentra
+/// escribiendo "martinez".
+String normalizeSearch(String text) {
+  const from = 'áéíóúüñ';
+  const to = 'aeiouun';
+  var out = text.toLowerCase().trim();
+  for (int i = 0; i < from.length; i++) {
+    out = out.replaceAll(from[i], to[i]);
+  }
+  return out;
 }

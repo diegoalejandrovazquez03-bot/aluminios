@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+
+import '../../core/dates.dart';
+
 import 'package:table_calendar/table_calendar.dart';
 
 import '../../core/constants.dart';
-import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/sheet_message.dart';
@@ -30,36 +32,12 @@ class _AgendaScreenState extends State<AgendaScreen> {
   DateTime _selectedDay = DateTime.now();
   bool _showPast = false; // Historial: false = próximas, true = realizadas
 
-  static const _weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-  static const _months = [
-    'ene',
-    'feb',
-    'mar',
-    'abr',
-    'may',
-    'jun',
-    'jul',
-    'ago',
-    'sep',
-    'oct',
-    'nov',
-    'dic',
-  ];
-
-  static const _monthNames = [
-    'Enero',
-    'Febrero',
-    'Marzo',
-    'Abril',
-    'Mayo',
-    'Junio',
-    'Julio',
-    'Agosto',
-    'Septiembre',
-    'Octubre',
-    'Noviembre',
-    'Diciembre',
-  ];
+  /// Color de cada tipo de visita (punto del calendario y tarjeta).
+  static Color _typeColor(String type) => switch (type) {
+    'Instalación' => AppColors.done,
+    'Toma de medidas' => AppColors.pending,
+    _ => AppColors.accent,
+  };
 
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
   static DateTime get _today => _dateOnly(DateTime.now());
@@ -67,7 +45,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
   static String _longDate(String iso) {
     final d = DateTime.tryParse(iso);
     if (d == null) return iso;
-    return '${_weekdays[d.weekday - 1]} ${d.day} ${_months[d.month - 1]} ${d.year}';
+    return '${weekdayAbbr[d.weekday - 1]} ${d.day} ${monthAbbr[d.month - 1]} ${d.year}';
   }
 
   static int? _minutes(String hhmm) {
@@ -76,10 +54,6 @@ class _AgendaScreenState extends State<AgendaScreen> {
     final h = int.parse(m.group(1)!), min = int.parse(m.group(2)!);
     if (h > 23 || min > 59) return null;
     return h * 60 + min;
-  }
-
-  String _formatIso(DateTime d) {
-    return "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
   }
 
   void _openNewVisitModal() {
@@ -130,7 +104,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
                       ),
                     ),
                     icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                    label: Text('Fecha: ${_longDate(_formatIso(date))}'),
+                    label: Text('Fecha: ${_longDate(isoDate(date))}'),
                     onPressed: () async {
                       final picked = await showDatePicker(
                         context: ctx,
@@ -235,7 +209,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
                       }
                       final v = Visit(
                         id: DateTime.now().millisecondsSinceEpoch,
-                        date: _formatIso(date),
+                        date: isoDate(date),
                         start: startCtrl.text.trim(),
                         end: endCtrl.text.trim(),
                         type: type,
@@ -266,7 +240,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
-    final selectedIso = _formatIso(_selectedDay);
+    final selectedIso = isoDate(_selectedDay);
     final dayVisits = state.visits.where((v) => v.date == selectedIso).toList()
       ..sort((a, b) => a.start.compareTo(b.start));
 
@@ -285,11 +259,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
     final history = _showPast ? done : upcoming;
 
     return Scaffold(
-      appBar: TopBar(
-        title: 'Agenda de visitas',
-        showLogo: true,
-        onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
-      ),
+      appBar: TopBar(title: 'Agenda de visitas', showLogo: true),
       body: RefreshIndicator(
         // Deslizar hacia abajo trae del servidor las solicitudes nuevas.
         onRefresh: () => refreshFromServer(context, widget.state),
@@ -314,13 +284,13 @@ class _AgendaScreenState extends State<AgendaScreen> {
                 startingDayOfWeek: StartingDayOfWeek.monday,
                 daysOfWeekStyle: DaysOfWeekStyle(
                   dowTextFormatter: (date, locale) =>
-                      _weekdays[date.weekday - 1],
+                      weekdayAbbr[date.weekday - 1],
                 ),
                 headerStyle: HeaderStyle(
                   formatButtonVisible: false,
                   titleCentered: true,
                   titleTextFormatter: (date, locale) =>
-                      '${_monthNames[date.month - 1]} ${date.year}',
+                      '${capitalize(monthNames[date.month - 1])} ${date.year}',
                   titleTextStyle: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 16,
@@ -342,7 +312,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
                   ),
                 ),
                 eventLoader: (day) {
-                  final iso = _formatIso(day);
+                  final iso = isoDate(day);
                   return state.visits.where((v) => v.date == iso).toList();
                 },
                 calendarBuilders: CalendarBuilders(
@@ -352,11 +322,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: events.take(3).map((e) {
                         final v = e as Visit;
-                        Color dotColor = AppColors.accent;
-                        if (v.type == 'Instalación') dotColor = AppColors.done;
-                        if (v.type == 'Toma de medidas') {
-                          dotColor = AppColors.pending;
-                        }
+                        final dotColor = _typeColor(v.type);
                         return Container(
                           margin: const EdgeInsets.symmetric(horizontal: 1),
                           width: 5,
@@ -445,15 +411,10 @@ class _AgendaScreenState extends State<AgendaScreen> {
   /// Tarjeta de una visita. Con [showDate] muestra la fecha completa (historial).
   Widget _visitCard(Visit v, {bool showDate = false}) {
     final state = widget.state;
-    final client = state.clients.where((c) => c.id == v.clientId).firstOrNull;
+    final client = state.clientById(v.clientId);
     final done = v.isDone;
 
-    Color typeColor = AppColors.accent;
-    if (v.type == 'Instalación') {
-      typeColor = AppColors.done;
-    } else if (v.type == 'Toma de medidas') {
-      typeColor = AppColors.pending;
-    }
+    final typeColor = _typeColor(v.type);
 
     return AppCard(
       margin: const EdgeInsets.only(bottom: 10),

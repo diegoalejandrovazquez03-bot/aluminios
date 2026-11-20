@@ -16,8 +16,6 @@ class AppText {
     letterSpacing: 0.9,
   );
 
-  static String? get monoFamily => _mono(FontWeight.w400).fontFamily;
-
   static TextStyle _mono(FontWeight weight) => _monoBase.putIfAbsent(
     weight,
     () => GoogleFonts.ibmPlexMono(

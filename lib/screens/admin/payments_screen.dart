@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../core/constants.dart';
-import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/payment_sheet.dart';
-import '../../widgets/sales_chart.dart' show parseAppDate;
+import '../../core/dates.dart';
 import '../../widgets/top_bar.dart';
 import '../../widgets/ui.dart';
 
@@ -44,11 +42,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       });
 
     return Scaffold(
-      appBar: TopBar(
-        title: 'Anticipos y pagos',
-        showLogo: true,
-        onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
-      ),
+      appBar: TopBar(title: 'Anticipos y pagos', showLogo: true),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -90,32 +84,13 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   /// Renglón de un pago; al tocarlo abre su recibo.
   Widget _paymentRow(Payment p) {
     final state = widget.state;
-    final q = state.quotes.where((x) => x.id == p.quoteId).firstOrNull;
-    final c = q != null
-        ? state.clients.where((x) => x.id == q.clientId).firstOrNull
-        : null;
+    final q = state.quoteById(p.quoteId);
+    final c = q != null ? state.clientById(q.clientId) : null;
 
-    return BoxRow(
-      leading: IconBadge(
-        Icons.check_circle_rounded,
-        color: AppColors.done,
-        background: AppColors.completedBg,
-      ),
+    return PaymentRow(
+      state: state,
+      payment: p,
       title: '${q?.folio ?? 'Cotización'} · ${c?.name ?? 'Cliente'}',
-      subtitle: '${AppState.displayDate(p.date)} · ${p.method}',
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          MoneyText(AppState.formatMXN(p.amount), color: AppColors.done),
-          const SizedBox(width: 4),
-          Icon(
-            Icons.receipt_long_outlined,
-            size: 18,
-            color: AppColors.textMuted,
-          ),
-        ],
-      ),
-      onTap: () => openReceipt(context, state, p),
     );
   }
 }

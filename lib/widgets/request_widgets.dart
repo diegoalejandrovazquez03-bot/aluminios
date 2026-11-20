@@ -78,19 +78,18 @@ String? requestMeasures(QuoteRequest r) {
 }
 
 /// Cuadrícula de fotos de una solicitud. Con [onChanged] se pueden agregar
-/// (hasta [max]) y quitar; sin él solo se ven.
+/// (hasta [maxPhotos]) y quitar; sin él solo se ven.
 class RequestPhotos extends StatelessWidget {
   final List<String> photos;
   final String title;
   final ValueChanged<List<String>>? onChanged;
-  final int max;
+  static const maxPhotos = 4;
 
   const RequestPhotos({
     super.key,
     required this.photos,
     required this.title,
     this.onChanged,
-    this.max = 4,
   });
 
   Future<void> _add(BuildContext context) async {
@@ -180,7 +179,7 @@ class RequestPhotos extends StatelessWidget {
                 ),
             ],
           ),
-        if (editable && photos.length < max)
+        if (editable && photos.length < maxPhotos)
           OutlinedButton(
             style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
             onPressed: () => _add(context),

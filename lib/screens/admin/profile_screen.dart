@@ -39,7 +39,7 @@ class ProfileScreen extends StatelessWidget {
       v.trim().isEmpty ? 'Escribe $what' : null;
 
   static String? _phone(String v) {
-    final digits = v.replaceAll(RegExp(r'\D'), '');
+    final digits = PhoneInput.digits(v);
     if (digits.isEmpty) return 'Escribe el teléfono';
     return digits.length == PhoneInput.length
         ? null

@@ -8,6 +8,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 
+import 'input_rules.dart';
+
 import '../models/models.dart';
 
 /// PDF de la cotización con la marca del taller: franja carbón con el logo,
@@ -27,9 +29,6 @@ class QuotePdfService {
   );
 
   static String _mxn(num amount) => _money.format(amount);
-
-  static String _measure(double value) =>
-      value == value.roundToDouble() ? value.toInt().toString() : '$value';
 
   /// Arma el documento y devuelve sus bytes (sirve para la vista previa).
   /// [business] aporta los datos del taller, la vigencia, las condiciones y
@@ -279,8 +278,8 @@ class QuotePdfService {
               item.note.isEmpty
                   ? productName(item.productId)
                   : '${productName(item.productId)}\n${item.note}',
-              '${_measure(item.width)} × ${_measure(item.height)}'
-                  '${item.depth == null ? '' : ' × ${_measure(item.depth!)}'}'
+              '${MeasureInput.format(item.width)} × ${MeasureInput.format(item.height)}'
+                  '${item.depth == null ? '' : ' × ${MeasureInput.format(item.depth!)}'}'
                   '\n${item.area.toStringAsFixed(2)} m²',
               '${item.qty}',
               // Por m² en las cotizaciones nuevas; por pieza en las anteriores.
@@ -333,7 +332,7 @@ class QuotePdfService {
       ('Subtotal', _mxn(quote.subtotal)),
       if (quote.discount > 0)
         (
-          'Descuento (${_measure(quote.discount)}%)',
+          'Descuento (${MeasureInput.format(quote.discount)}%)',
           '-${_mxn(quote.discountAmount)}',
         ),
     ],

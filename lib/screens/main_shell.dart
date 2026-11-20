@@ -190,10 +190,8 @@ class _MainShellState extends State<MainShell> {
     );
     AppNavigation.openProfile = () =>
         _navigateTo(isAdmin ? AdminScreen.perfil : ClientScreen.perfil);
-    AppNavigation.noticesButton = () => NoticesButton(
-      state: state,
-      onNavigate: isAdmin ? _navigateTo : null,
-    );
+    AppNavigation.noticesButton = () =>
+        NoticesButton(state: state, onNavigate: isAdmin ? _navigateTo : null);
     // Avatar de la barra superior: foto o iniciales de quien tiene la sesión.
     CurrentUser.name = isAdmin
         ? (state.settings.ownerName.trim().isNotEmpty

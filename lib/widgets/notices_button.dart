@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/dates.dart';
+
 import '../core/app_routes.dart';
 import '../core/constants.dart';
 import '../screens/admin/requests_screen.dart';
@@ -21,7 +23,7 @@ class NoticesButton extends StatelessWidget {
 
   /// Lo que abre un aviso, o null si no lleva a ningún lado.
   VoidCallback? _target(BuildContext context, int? quoteId, int? requestId) {
-    final quote = state.quotes.where((q) => q.id == quoteId).firstOrNull;
+    final quote = state.quoteById(quoteId);
     final request = state.requests.where((r) => r.id == requestId).firstOrNull;
     if (quote != null) {
       if (state.isAdmin) {
@@ -162,8 +164,6 @@ class NoticesButton extends StatelessWidget {
   static String _when(String iso) {
     final d = DateTime.tryParse(iso);
     if (d == null) return '';
-    final hh = d.hour.toString().padLeft(2, '0');
-    final mm = d.minute.toString().padLeft(2, '0');
-    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} · $hh:$mm';
+    return dmyDateTime(d);
   }
 }

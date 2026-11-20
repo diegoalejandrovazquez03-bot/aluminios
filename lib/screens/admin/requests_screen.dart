@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/dates.dart';
+
 import '../../core/app_routes.dart';
 import '../../core/constants.dart';
 import '../../core/external_links.dart';
@@ -45,12 +47,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
     final requests = state.requests.where(_matches).toList();
 
     return Scaffold(
-      appBar: TopBar(
-        title: 'Solicitudes',
-        showLogo: true,
-        onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
-
-      ),
+      appBar: TopBar(title: 'Solicitudes', showLogo: true),
       body: Column(
         children: [
           FilterBar(
@@ -92,9 +89,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
   }
 
   Widget _requestCard(BuildContext context, QuoteRequest r) {
-    final client = widget.state.clients
-        .where((c) => c.id == r.clientId)
-        .firstOrNull;
+    final client = widget.state.clientById(r.clientId);
     final details = [
       ?requestMeasures(r),
       if (r.photos.isNotEmpty)
@@ -132,7 +127,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
           ),
           const SizedBox(height: 2),
           Text(
-            '${r.type} · ${AppState.displayDate(r.date)}',
+            '${r.type} · ${displayDate(r.date)}',
             style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
           const SizedBox(height: 8),
@@ -173,14 +168,10 @@ void showAdminRequest(
         final r =
             state.requests.where((x) => x.id == request.id).firstOrNull ??
             request;
-        final client = state.clients
-            .where((c) => c.id == r.clientId)
-            .firstOrNull;
-        final product = state.products
-            .where((p) => p.id == r.productId)
-            .firstOrNull;
+        final client = state.clientById(r.clientId);
+        final product = state.productById(r.productId);
         final measures = requestMeasures(r);
-        final quote = state.quotes.where((q) => q.id == r.quoteId).firstOrNull;
+        final quote = state.quoteById(r.quoteId);
 
         return SafeArea(
           child: SingleChildScrollView(
@@ -205,7 +196,7 @@ void showAdminRequest(
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${r.type} · ${AppState.displayDate(r.date)}',
+                  '${r.type} · ${displayDate(r.date)}',
                   style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 if (client != null && client.phone.isNotEmpty) ...[

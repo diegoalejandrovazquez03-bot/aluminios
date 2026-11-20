@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../core/constants.dart';
-import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/payment_sheet.dart';
-import '../../widgets/sales_chart.dart' show parseAppDate;
+import '../../core/dates.dart';
 import '../../widgets/ui.dart';
 
 /// Historial de pagos del cliente: todos sus abonos, del más reciente al más
@@ -42,12 +40,7 @@ class ClientPaymentsScreen extends StatelessWidget {
     final payments = indexed.map((e) => e.$2).toList();
 
     final totalPaid = payments.fold<double>(0, (a, p) => a + p.amount);
-    var balance = 0.0;
-    for (final q in quotes.values) {
-      if (q.status == QuoteStatus.cancelada) continue;
-      final rem = q.total - state.paidOf(q.id);
-      if (rem > 0) balance += rem;
-    }
+    final balance = state.clientBalance;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mis pagos')),
@@ -73,30 +66,10 @@ class ClientPaymentsScreen extends StatelessWidget {
             ListBox(
               children: [
                 for (final p in payments)
-                  BoxRow(
-                    leading: IconBadge(
-                      Icons.check_circle_rounded,
-                      color: AppColors.done,
-                      background: AppColors.completedBg,
-                    ),
+                  PaymentRow(
+                    state: state,
+                    payment: p,
                     title: 'Pedido ${quotes[p.quoteId]!.folio}',
-                    subtitle: '${AppState.displayDate(p.date)} · ${p.method}',
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        MoneyText(
-                          AppState.formatMXN(p.amount),
-                          color: AppColors.done,
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.receipt_long_outlined,
-                          size: 18,
-                          color: AppColors.textMuted,
-                        ),
-                      ],
-                    ),
-                    onTap: () => openReceipt(context, state, p),
                   ),
               ],
             ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/dates.dart';
+
 import '../core/constants.dart';
 import '../core/input_rules.dart';
 import '../core/quote_pdf_service.dart';
@@ -7,6 +9,48 @@ import '../models/models.dart';
 import '../state/app_state.dart';
 import 'pdf_preview_screen.dart';
 import 'sheet_message.dart';
+import 'ui.dart';
+
+/// Renglón de un abono (el mismo en todas las pantallas): palomita verde,
+/// fecha y forma de pago, monto en verde; al tocarlo abre su recibo.
+class PaymentRow extends StatelessWidget {
+  final AppState state;
+  final Payment payment;
+  final String title;
+
+  const PaymentRow({
+    super.key,
+    required this.state,
+    required this.payment,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return BoxRow(
+      leading: IconBadge(
+        Icons.check_circle_rounded,
+        color: AppColors.done,
+        background: AppColors.completedBg,
+      ),
+      title: title,
+      subtitle: '${displayDate(payment.date)} · ${payment.method}',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          MoneyText(AppState.formatMXN(payment.amount), color: AppColors.done),
+          const SizedBox(width: 4),
+          Icon(
+            Icons.receipt_long_outlined,
+            size: 18,
+            color: AppColors.textMuted,
+          ),
+        ],
+      ),
+      onTap: () => openReceipt(context, state, payment),
+    );
+  }
+}
 
 /// Genera el recibo de un abono y lo abre en la vista previa.
 Future<void> openReceipt(
@@ -15,7 +59,7 @@ Future<void> openReceipt(
   Payment payment,
 ) async {
   final messenger = ScaffoldMessenger.of(context);
-  final quote = state.quotes.where((q) => q.id == payment.quoteId).firstOrNull;
+  final quote = state.quoteById(payment.quoteId);
   if (quote == null) {
     messenger.showSnackBar(
       const SnackBar(content: Text('La cotización de este pago ya no existe.')),
@@ -26,7 +70,7 @@ Future<void> openReceipt(
     final file = await QuotePdfService.createReceipt(
       payment,
       quote,
-      state.clients.where((c) => c.id == quote.clientId).firstOrNull,
+      state.clientById(quote.clientId),
       state.payments,
       state.settings,
     );
@@ -98,9 +142,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
     super.dispose();
   }
 
-  String get _dateText =>
-      '${_date.day.toString().padLeft(2, '0')}/'
-      '${_date.month.toString().padLeft(2, '0')}/${_date.year}';
+  String get _dateText => dmyDate(_date);
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
@@ -163,12 +205,8 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   Widget build(BuildContext context) {
     final state = widget.state;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final quote = _quoteId == null
-        ? null
-        : state.quotes.where((q) => q.id == _quoteId).firstOrNull;
-    final balance = quote == null
-        ? 0.0
-        : (quote.total - state.paidOf(quote.id)).clamp(0.0, double.infinity);
+    final quote = _quoteId == null ? null : state.quoteById(_quoteId);
+    final balance = quote == null ? 0.0 : state.remainingOf(quote);
 
     return Container(
       padding: EdgeInsets.only(
@@ -217,9 +255,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                   items: state.quotes
                       .where((q) => q.status != QuoteStatus.cancelada)
                       .map((q) {
-                        final client = state.clients
-                            .where((c) => c.id == q.clientId)
-                            .firstOrNull;
+                        final client = state.clientById(q.clientId);
                         return DropdownMenuItem<int>(
                           value: q.id,
                           child: Text(

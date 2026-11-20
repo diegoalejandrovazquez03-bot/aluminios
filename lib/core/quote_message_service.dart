@@ -1,16 +1,13 @@
 import '../models/models.dart';
 import '../state/app_state.dart';
 import 'api_client.dart';
+import 'input_rules.dart';
 
 /// Mensaje de WhatsApp para enviar una cotización: redactado por el asistente
 /// del backend (Claude) o, si no está disponible, con una plantilla fija.
 class QuoteMessageService {
   static String _productName(AppState state, int productId) =>
-      state.products.where((p) => p.id == productId).firstOrNull?.name ??
-      'Pieza';
-
-  static String _cm(double v) =>
-      v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1);
+      state.productById(productId)?.name ?? 'Pieza';
 
   static String template(AppState state, Quote quote, Client? client) {
     final paid = state.paidOf(quote.id);
@@ -22,7 +19,7 @@ class QuoteMessageService {
       ..writeln();
     for (final it in quote.items) {
       b.writeln(
-        '• ${_productName(state, it.productId)}: ${_cm(it.width)} × ${_cm(it.height)} cm, '
+        '• ${_productName(state, it.productId)}: ${MeasureInput.format(it.width)} × ${MeasureInput.format(it.height)} cm, '
         '${it.qty} pza — ${AppState.formatMXN(it.subtotal)}',
       );
     }
@@ -34,9 +31,7 @@ class QuoteMessageService {
     if (paid > 0) {
       b
         ..writeln('Pagado: ${AppState.formatMXN(paid)}')
-        ..writeln(
-          'Saldo: ${AppState.formatMXN((quote.total - paid).clamp(0, double.infinity))}',
-        );
+        ..writeln('Saldo: ${AppState.formatMXN(state.remainingOf(quote))}');
     }
     b
       ..writeln()

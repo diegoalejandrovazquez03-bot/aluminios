@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/dates.dart';
+
 import '../../core/constants.dart';
 import '../../core/input_rules.dart';
 import '../../core/app_routes.dart';
@@ -86,7 +88,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       leading: const IconBadge(Icons.receipt_long),
                       title: quote.folio,
                       monoTitle: true,
-                      subtitle: '${AppState.displayDate(quote.date)} · ${quote.status.label}',
+                      subtitle:
+                          '${displayDate(quote.date)} · ${quote.status.label}',
                       trailing: MoneyText(AppState.formatMXN(quote.total)),
                       onTap: () {
                         Navigator.pop(ctx);
@@ -136,7 +139,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
     final nameCtrl = TextEditingController(text: client?.name ?? '');
     // Al editar un número guardado con espacios o guiones se dejan solo dígitos.
     final phoneCtrl = TextEditingController(
-      text: (client?.phone ?? '').replaceAll(RegExp(r'\D'), ''),
+      text: PhoneInput.digits(client?.phone ?? ''),
     );
     final addressCtrl = TextEditingController(text: client?.address ?? '');
     bool showErrors = false;
@@ -247,16 +250,12 @@ class _ClientsScreenState extends State<ClientsScreen> {
   Widget build(BuildContext context) {
     final state = widget.state;
     final clients = state.clients.where((c) {
-      final q = _search.toLowerCase();
-      return c.name.toLowerCase().contains(q) || c.phone.contains(q);
+      final q = normalizeSearch(_search);
+      return normalizeSearch(c.name).contains(q) || c.phone.contains(q);
     }).toList();
 
     return Scaffold(
-      appBar: TopBar(
-        title: 'Clientes',
-        showLogo: true,
-        onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
-      ),
+      appBar: TopBar(title: 'Clientes', showLogo: true),
       body: Column(
         children: [
           Padding(

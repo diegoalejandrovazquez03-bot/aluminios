@@ -9,10 +9,6 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showLogo;
   final Widget? leading;
   final List<Widget>? actions;
-  final VoidCallback? onAvatarTap;
-
-  /// A dónde regresa la flecha; por defecto, a la pantalla anterior.
-  final VoidCallback? onBack;
 
   /// En el propio perfil no tiene sentido el avatar que lleva al perfil.
   final bool showAvatar;
@@ -23,8 +19,6 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
     this.showLogo = true,
     this.leading,
     this.actions,
-    this.onAvatarTap,
-    this.onBack,
     this.showAvatar = true,
   });
 
@@ -41,9 +35,8 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
 
     // Pestañas principales: menú a la izquierda. Pantallas secundarias
     // (detalle, pagos, agenda…): flecha de regresar en su lugar.
-    final showBack =
-        onBack != null || (!AppNavigation.isRoot && AppNavigation.canGoBack);
-    final avatarTap = onAvatarTap ?? AppNavigation.openProfile;
+    final showBack = !AppNavigation.isRoot && AppNavigation.canGoBack;
+    final avatarTap = AppNavigation.openProfile;
     final notices = AppNavigation.noticesButton;
     return AppBar(
       leading:
@@ -52,7 +45,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
               ? IconButton(
                   tooltip: 'Volver',
                   icon: Icon(Icons.arrow_back, color: fg),
-                  onPressed: onBack ?? AppNavigation.onBack,
+                  onPressed: AppNavigation.onBack,
                 )
               : IconButton(
                   tooltip: 'Menú',

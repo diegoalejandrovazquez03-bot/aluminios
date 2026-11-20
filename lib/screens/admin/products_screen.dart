@@ -4,7 +4,6 @@ import '../../core/theme.dart';
 
 import '../../core/constants.dart';
 import '../../core/input_rules.dart';
-import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/sheet_message.dart';
@@ -37,8 +36,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
   List<Product> _getFilteredProducts() {
     var list = widget.state.products.where((p) {
       final matchQuery =
-          p.name.toLowerCase().contains(_search.toLowerCase()) ||
-          p.material.toLowerCase().contains(_search.toLowerCase());
+          normalizeSearch(p.name).contains(normalizeSearch(_search)) ||
+          normalizeSearch(p.material).contains(normalizeSearch(_search));
       final matchMaterial =
           _materialFilter == 'Todos' || p.material == _materialFilter;
       return matchQuery && matchMaterial;
@@ -316,11 +315,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
     ];
 
     return Scaffold(
-      appBar: TopBar(
-        title: 'Productos',
-        showLogo: true,
-        onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
-      ),
+      appBar: TopBar(title: 'Productos', showLogo: true),
       body: Column(
         children: [
           Padding(

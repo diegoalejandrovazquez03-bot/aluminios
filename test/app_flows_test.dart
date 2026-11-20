@@ -780,6 +780,36 @@ void clientPortalExtrasTests() {
     );
   });
 
+  test(
+    'El taller renumera folios viejos y guarda la fecha de entrega',
+    () async {
+      final s = await _anaWithQuote();
+      // Folio largo del error anterior, guardado así en el servidor.
+      server.table('cotizaciones').firstWhere((q) => q['id'] == 9001)['folio'] =
+          '#20261120004860';
+      await asUser(s.admin, () => s.admin.refreshFromServer(notify: false));
+      final quote = s.admin.quotes.firstWhere((q) => q.id == 9001);
+      expect(Quote.folioNumber(quote.folio), isNotNull);
+      expect(quote.folio, startsWith('COT-'));
+      expect(
+        server
+            .table('cotizaciones')
+            .firstWhere((q) => q['id'] == 9001)['folio'],
+        quote.folio,
+      );
+
+      await asUser(s.admin, () async {
+        s.admin.updateQuote(quote.copyWith(deliveryDate: '2026-11-28'));
+      });
+      expect(
+        server
+            .table('cotizaciones')
+            .firstWhere((q) => q['id'] == 9001)['deliveryDate'],
+        '2026-11-28',
+      );
+    },
+  );
+
   test('El cliente rechaza su cotización', () async {
     final s = await _anaWithQuote();
     expect(s.ana.respondToQuote(s.quoteId, approve: false), isNull);

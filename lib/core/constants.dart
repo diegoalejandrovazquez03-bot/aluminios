@@ -30,9 +30,6 @@ class AppColors {
   static const Color mutedOnDark = Color(0xFF9AA0A7);
   static const Color softOnDark = Color(0xFFC9CED4);
 
-  // Borde neutro semitransparente que funciona en ambos modos
-  static const Color hairline = Color(0x338A8F96);
-
   // ---- Colores que dependen del modo ----
 
   /// Texto e íconos principales (y fondo de botones primarios).
@@ -45,9 +42,7 @@ class AppColors {
   static Color get blue => dark ? accentDark : accent;
   static Color get textMuted => dark ? mutedOnDark : textMutedLight;
   static Color get textDark => dark ? softOnDark : graphiteLight;
-  static Color get graphite => textDark;
 
-  static Color get background => dark ? bgDark : backgroundLight;
   static Color get card => dark ? surfaceDark : Colors.white;
   static Color get lightBlue => dark ? subtleDark : dividerLight;
   static Color get border => dark ? borderDark : borderLight;
@@ -69,17 +64,10 @@ class AppColors {
       dark ? const Color(0xFF3A3020) : const Color(0xFFF7EEDC);
   static Color get approvedBg =>
       dark ? const Color(0xFF22303D) : const Color(0xFFE6ECF2);
-  static Color get approvedText => blue;
-  static Color get inProcessBg => approvedBg;
-  static Color get inProcessText => blue;
   static Color get completedBg =>
       dark ? const Color(0xFF213328) : const Color(0xFFE4EEE6);
-  static Color get completedText => done;
-  static Color get deliveredBg => completedBg;
-  static Color get deliveredText => done;
   static Color get cancelledBg =>
       dark ? const Color(0xFF3A2522) : const Color(0xFFF5E4E1);
-  static Color get cancelledText => cancelled;
 
   static const List<Color> avatarColors = [
     Color(0xFF3A3F45),

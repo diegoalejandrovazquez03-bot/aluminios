@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../core/dates.dart';
+
 import '../../core/theme.dart';
 
 import '../../core/constants.dart';
+import '../../core/input_rules.dart';
 import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
@@ -37,32 +40,17 @@ class _QuotesScreenState extends State<QuotesScreen> {
     super.dispose();
   }
 
-  /// Minúsculas y sin acentos: "Martínez" se encuentra escribiendo "martinez".
-  static String _norm(String text) {
-    const from = 'áéíóúüñ';
-    const to = 'aeiouun';
-    var out = text.toLowerCase().trim();
-    for (int i = 0; i < from.length; i++) {
-      out = out.replaceAll(from[i], to[i]);
-    }
-    return out;
-  }
-
   /// Coincide por folio (con o sin #), nombre o teléfono del cliente.
   bool _matchesSearch(Quote q) {
-    final term = _norm(_search).replaceAll('#', '');
+    final term = normalizeSearch(_search).replaceAll('#', '');
     if (term.isEmpty) return true;
-    final client = widget.state.clients
-        .where((c) => c.id == q.clientId)
-        .firstOrNull;
-    final digits = term.replaceAll(RegExp(r'\D'), '');
-    return _norm(q.folio).replaceAll('#', '').contains(term) ||
-        _norm(client?.name ?? '').contains(term) ||
+    final client = widget.state.clientById(q.clientId);
+    final digits = PhoneInput.digits(term);
+    return normalizeSearch(q.folio).replaceAll('#', '').contains(term) ||
+        normalizeSearch(client?.name ?? '').contains(term) ||
         (digits.isNotEmpty &&
             digits.length == term.replaceAll(' ', '').length &&
-            (client?.phone ?? '')
-                .replaceAll(RegExp(r'\D'), '')
-                .contains(digits));
+            PhoneInput.digits(client?.phone ?? '').contains(digits));
   }
 
   void _showTrash() {
@@ -204,7 +192,6 @@ class _QuotesScreenState extends State<QuotesScreen> {
       appBar: TopBar(
         title: 'Cotizaciones',
         showLogo: true,
-        onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
         actions: [
           TextButton.icon(
             onPressed: _showTrash,
@@ -308,14 +295,9 @@ class _QuotesScreenState extends State<QuotesScreen> {
   /// Tarjeta de una cotización: folio y estado arriba; cliente, fecha,
   /// piezas y total abajo. Si tiene saldo, una barra muestra cuánto se pagó.
   Widget _quoteCard(Quote q) {
-    final client = widget.state.clients
-        .where((c) => c.id == q.clientId)
-        .firstOrNull;
+    final client = widget.state.clientById(q.clientId);
     final paid = widget.state.paidOf(q.id);
-    final showProgress =
-        q.status != QuoteStatus.pendiente &&
-        q.status != QuoteStatus.cancelada &&
-        q.total > 0;
+    final showProgress = q.isOrder && q.total > 0;
     final progress = showProgress ? (paid / q.total).clamp(0.0, 1.0) : 0.0;
 
     return AppCard(
@@ -363,7 +345,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${widget.state.itemsSummary(q)} · ${AppState.displayDate(q.date)}',
+                      '${widget.state.itemsSummary(q)} · ${displayDate(q.date)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

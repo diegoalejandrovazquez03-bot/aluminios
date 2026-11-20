@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../core/dates.dart';
+
 import '../core/constants.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
@@ -17,19 +19,6 @@ class MonthSales {
   final double collected;
 
   const MonthSales(this.year, this.month, this.approved, this.collected);
-}
-
-/// Acepta fechas 'dd/MM/yyyy' o 'yyyy-MM-dd'.
-DateTime? parseAppDate(String date) {
-  final dmy = RegExp(r'^(\d{2})/(\d{2})/(\d{4})$').firstMatch(date);
-  if (dmy != null) {
-    return DateTime(
-      int.parse(dmy.group(3)!),
-      int.parse(dmy.group(2)!),
-      int.parse(dmy.group(1)!),
-    );
-  }
-  return DateTime.tryParse(date);
 }
 
 /// Los últimos [months] meses (el actual al final) con sus totales.
@@ -48,12 +37,7 @@ List<MonthSales> monthlySales(
     }
 
     final approved = quotes
-        .where(
-          (q) =>
-              q.status != QuoteStatus.pendiente &&
-              q.status != QuoteStatus.cancelada &&
-              inMonth(q.date),
-        )
+        .where((q) => q.isOrder && inMonth(q.date))
         .fold<double>(0, (a, q) => a + q.total);
     final collected = payments
         .where((p) => inMonth(p.date))
@@ -68,21 +52,6 @@ class SalesChart extends StatelessWidget {
   final List<MonthSales> data;
 
   const SalesChart({super.key, required this.data});
-
-  static const _monthShort = [
-    'Ene',
-    'Feb',
-    'Mar',
-    'Abr',
-    'May',
-    'Jun',
-    'Jul',
-    'Ago',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dic',
-  ];
 
   /// $12,500 → "$12.5k" para que quepa en el eje.
   static String _compact(double value) {
@@ -191,7 +160,7 @@ class SalesChart extends StatelessWidget {
                             return Padding(
                               padding: const EdgeInsets.only(top: 6),
                               child: Text(
-                                _monthShort[data[i].month - 1],
+                                capitalize(monthAbbr[data[i].month - 1]),
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: AppColors.textMuted,
@@ -211,7 +180,7 @@ class SalesChart extends StatelessWidget {
                         getTooltipItem: (group, groupIndex, rod, rodIndex) {
                           final m = data[group.x];
                           return BarTooltipItem(
-                            '${_monthShort[m.month - 1]} ${m.year}\n',
+                            '${capitalize(monthAbbr[m.month - 1])} ${m.year}\n',
                             const TextStyle(
                               color: AppColors.aluminum,
                               fontSize: 11,

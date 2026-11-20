@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../../core/dates.dart';
+
 import 'package:flutter/services.dart';
 
 import '../../core/constants.dart';
@@ -184,8 +187,6 @@ class ClientCatalogScreen extends StatelessWidget {
       'Tarde (12:00 – 17:00)': ['12:00', '17:00'],
     };
     String slot = slots.keys.first;
-    String iso(DateTime d) =>
-        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
     showModalBottomSheet(
       context: context,
@@ -277,7 +278,7 @@ class ClientCatalogScreen extends StatelessWidget {
                     state.addVisit(
                       Visit(
                         id: DateTime.now().millisecondsSinceEpoch,
-                        date: iso(date),
+                        date: isoDate(date),
                         start: slots[slot]![0],
                         end: slots[slot]![1],
                         type: 'Toma de medidas',
@@ -329,11 +330,7 @@ class ClientCatalogScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: TopBar(
-        title: 'Catálogo',
-        showLogo: true,
-        onAvatarTap: () => onNavigate(ClientScreen.perfil),
-      ),
+      appBar: TopBar(title: 'Catálogo', showLogo: true),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

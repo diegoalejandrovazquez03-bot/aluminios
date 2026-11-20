@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../core/dates.dart';
+
 import '../core/constants.dart';
 import '../models/models.dart';
-import '../state/app_state.dart';
 
 /// Avance de un pedido en cuatro pasos: Aprobada → Fabricación →
 /// Instalación → Entregada, con la fecha estimada de entrega abajo.
@@ -30,13 +31,9 @@ class OrderProgress extends StatelessWidget {
 
   /// "28 de noviembre" a partir de aaaa-mm-dd.
   static String friendlyDate(String iso) {
-    const months = [
-      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
-      'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-    ];
     final d = DateTime.tryParse(iso);
-    if (d == null) return AppState.displayDate(iso);
-    return '${d.day} de ${months[d.month - 1]}';
+    if (d == null) return displayDate(iso);
+    return '${d.day} de ${monthNames[d.month - 1]}';
   }
 
   @override

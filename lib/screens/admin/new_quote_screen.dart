@@ -56,9 +56,7 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
     if (r == null) return;
     _clientId = r.clientId;
     // Si la pidió del catálogo, la pieza ya va con sus medidas.
-    final product = widget.state.products
-        .where((p) => p.id == r.productId)
-        .firstOrNull;
+    final product = widget.state.productById(r.productId);
     if (product != null && r.width != null && r.height != null) {
       _items.add(
         QuoteItem.byArea(
@@ -79,11 +77,10 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
     super.dispose();
   }
 
-  Client? get _client =>
-      widget.state.clients.where((c) => c.id == _clientId).firstOrNull;
+  Client? get _client => widget.state.clientById(_clientId);
 
   Product? _productOf(QuoteItem item) =>
-      widget.state.products.where((p) => p.id == item.productId).firstOrNull;
+      widget.state.productById(item.productId);
 
   double get _subtotal => _items.fold(0.0, (acc, it) => acc + it.subtotal);
   double get _discountAmount => _subtotal * _discount / 100.0;
@@ -101,12 +98,12 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
       isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          final q = search.trim().toLowerCase();
+          final q = normalizeSearch(search);
           final clients = widget.state.clients
               .where(
                 (c) =>
                     q.isEmpty ||
-                    c.name.toLowerCase().contains(q) ||
+                    normalizeSearch(c.name).contains(q) ||
                     c.phone.contains(q),
               )
               .toList();

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -29,6 +30,21 @@ public sealed class ResourcesController(Store store, Push push) : ControllerBase
     }
 
     private static DateTime MexicoNow() => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Mexico);
+
+    // Folio consecutivo (COT-0001, COT-0002...) cuando la app no manda uno.
+    // Los folios viejos "#0012" también cuentan; los de fecha y hora, no.
+    private static readonly Regex FolioPattern = new(@"^(?:COT-|#)(\d{1,6})$");
+
+    private string NextFolio()
+    {
+        var max = store.Get("cotizaciones")
+            .Select(q => FolioPattern.Match(Str(q, "folio").Trim()))
+            .Where(m => m.Success)
+            .Select(m => int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture))
+            .DefaultIfEmpty(0)
+            .Max();
+        return $"COT-{max + 1:D4}";
+    }
 
     private static long ClientIdOf(JsonElement item) =>
         item.TryGetProperty("clientId", out var c) && c.ValueKind == JsonValueKind.Number && c.TryGetInt64(out var id) ? id : -1;
@@ -120,7 +136,7 @@ public sealed class ResourcesController(Store store, Push push) : ControllerBase
             if (ApplyQuoteTotals(data) is { } error) return BadRequest(new { error });
             data.TryAdd("status", JsonSerializer.SerializeToElement("Pendiente"));
             data.TryAdd("date", JsonSerializer.SerializeToElement(MexicoNow().ToString("dd/MM/yyyy")));
-            data.TryAdd("folio", JsonSerializer.SerializeToElement($"COT-{DateTime.UtcNow:yyyyMMddHHmmss}"));
+            data.TryAdd("folio", JsonSerializer.SerializeToElement(NextFolio()));
         }
         if (resource == "solicitudes")
         {
