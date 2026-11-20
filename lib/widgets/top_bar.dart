@@ -14,6 +14,9 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   /// A dónde regresa la flecha; por defecto, a la pantalla anterior.
   final VoidCallback? onBack;
 
+  /// En el propio perfil no tiene sentido el avatar que lleva al perfil.
+  final bool showAvatar;
+
   const TopBar({
     super.key,
     required this.title,
@@ -22,6 +25,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
     this.actions,
     this.onAvatarTap,
     this.onBack,
+    this.showAvatar = true,
   });
 
   @override
@@ -35,15 +39,26 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
     // títulos de sección van normales.
     final isBrand = title == title.toUpperCase();
 
-    // Menú lateral a la izquierda; la flecha de regresar va a la derecha.
+    // Pestañas principales: menú a la izquierda. Pantallas secundarias
+    // (detalle, pagos, agenda…): flecha de regresar en su lugar.
+    final showBack =
+        onBack != null || (!AppNavigation.isRoot && AppNavigation.canGoBack);
+    final avatarTap = onAvatarTap ?? AppNavigation.openProfile;
+    final notices = AppNavigation.noticesButton;
     return AppBar(
       leading:
           leading ??
-          IconButton(
-            tooltip: 'Menú',
-            icon: Icon(Icons.menu, color: fg),
-            onPressed: () => AppNavigation.openMenu?.call(),
-          ),
+          (showBack
+              ? IconButton(
+                  tooltip: 'Volver',
+                  icon: Icon(Icons.arrow_back, color: fg),
+                  onPressed: onBack ?? AppNavigation.onBack,
+                )
+              : IconButton(
+                  tooltip: 'Menú',
+                  icon: Icon(Icons.menu, color: fg),
+                  onPressed: () => AppNavigation.openMenu?.call(),
+                )),
       titleSpacing: 0,
       title: Row(
         mainAxisSize: MainAxisSize.min,
@@ -87,11 +102,12 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       actions: [
         ...?actions,
-        if (onAvatarTap != null)
+        if (notices != null) notices(),
+        if (showAvatar && avatarTap != null)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: GestureDetector(
-              onTap: onAvatarTap,
+              onTap: avatarTap,
               child: AvatarWidget(
                 name: CurrentUser.name,
                 imageUrl: CurrentUser.photoUrl,
@@ -99,14 +115,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
           ),
-        // En la pantalla raíz no hay a dónde regresar: regresar cerraría la app.
-        if (onBack != null || AppNavigation.canGoBack)
-          IconButton(
-            tooltip: 'Volver',
-            icon: Icon(Icons.arrow_back, color: fg),
-            onPressed: onBack ?? AppNavigation.onBack,
-          ),
-        const SizedBox(width: 4),
+        const SizedBox(width: 8),
       ],
     );
   }

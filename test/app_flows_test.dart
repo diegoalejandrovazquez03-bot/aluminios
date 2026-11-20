@@ -89,7 +89,14 @@ void main() {
 
     await tester.enterText(search, quote.folio.replaceAll('#', ''));
     await tester.pumpAndSettle();
-    expect(find.text(quote.folio), findsOneWidget);
+    // El folio está en la caja de búsqueda y en la tarjeta.
+    expect(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.text(quote.folio),
+      ),
+      findsOneWidget,
+    );
 
     await tester.enterText(search, client.name.toUpperCase());
     await tester.pumpAndSettle();
@@ -138,7 +145,11 @@ void main() {
     await tester.pumpAndSettle();
 
     final button = find.widgetWithText(TextButton, 'Registrar abono');
-    await tester.ensureVisible(button);
+    await tester.dragUntilVisible(
+      button,
+      find.byType(ListView).first,
+      const Offset(0, -300),
+    );
     await tester.pumpAndSettle();
     expect(find.textContaining('por WhatsApp'), findsOneWidget);
     await tester.tap(button);
@@ -181,7 +192,7 @@ void main() {
     await tester.pumpAndSettle();
     await tapNav(tester, 'Cotizaciones');
     expect(tester.takeException(), isNull);
-    await tester.tap(find.byTooltip('Papelera'));
+    await tester.tap(find.widgetWithText(TextButton, 'Papelera'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.textContaining('Cotización ${quote.folio}'), findsOneWidget);
@@ -191,7 +202,9 @@ void main() {
     await pumpAdminApp(tester);
     await tapNav(tester, 'Clientes');
     await tapNav(tester, 'Cotizaciones');
-    await tester.tap(find.byTooltip('Volver'));
+    // Las pestañas muestran el menú; se regresa con el botón del teléfono.
+    expect(find.byTooltip('Volver'), findsNothing);
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(find.text('Clientes'), findsWidgets);
     expect(find.byType(FloatingActionButton), findsOneWidget);
@@ -347,6 +360,11 @@ void main() {
       'Solicitudes': AdminScreen.solicitudes,
     };
     for (final entry in titles.entries) {
+      // En pantallas secundarias hay flecha de regreso en lugar del menú.
+      if (find.byTooltip('Menú').evaluate().isEmpty) {
+        await tester.tap(find.byTooltip('Volver'));
+        await tester.pumpAndSettle();
+      }
       await tester.tap(find.byTooltip('Menú'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ListTile, entry.key));
@@ -855,7 +873,7 @@ void clientPortalExtrasTests() {
     state.addQuote(
       Quote(
         id: 9200,
-        folio: '#9200',
+        folio: 'COT-9200',
         clientId: state.session!.clientId,
         date: '01/11/2026',
         status: QuoteStatus.aprobada,
@@ -889,7 +907,7 @@ void clientPortalExtrasTests() {
     await tester.tap(button);
     await tester.pumpAndSettle();
 
-    expect(find.text('Pedido #9200'), findsOneWidget);
+    expect(find.text('Pedido COT-9200'), findsOneWidget);
     expect(find.text(r'$ 1,200.50'), findsWidgets); // fila y total pagado
     expect(find.text(r'$ 1,799.50'), findsOneWidget); // saldo pendiente
     expect(tester.takeException(), isNull);
@@ -1276,7 +1294,7 @@ void quoteRequestTests() {
       s.admin.addQuote(
         Quote(
           id: 9200,
-          folio: '#9200',
+          folio: 'COT-9200',
           clientId: s.ana.session!.clientId,
           date: '16/11/2026',
           status: QuoteStatus.pendiente,
@@ -1300,13 +1318,13 @@ void quoteRequestTests() {
     expect(s.ana.clientQuotes.map((q) => q.id), contains(9200));
     expect(
       s.ana.notices.map((n) => n.text),
-      contains('Tienes una nueva cotización #9200.'),
+      contains('Tienes una nueva cotización COT-9200.'),
     );
 
     // El cliente la aprueba y el taller recibe el aviso.
     await asUser(s.ana, () async => s.ana.respondToQuote(9200, approve: true));
     await asUser(s.admin, () => s.admin.refreshFromServer());
-    expect(s.admin.notices.first.text, 'Ana aprobó la cotización #9200.');
+    expect(s.admin.notices.first.text, 'Ana aprobó la cotización COT-9200.');
     expect(s.admin.notices.first.quoteId, 9200);
   });
 

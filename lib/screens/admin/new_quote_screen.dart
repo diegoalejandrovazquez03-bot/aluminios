@@ -166,7 +166,7 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
                                           size: 36,
                                         ),
                                         title: c.name,
-                                        subtitle: c.phone,
+                                        subtitle: PhoneInput.display(c.phone),
                                         trailing: c.id == _clientId
                                             ? Icon(
                                                 Icons.check,
@@ -361,7 +361,7 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
 
     final newQuote = Quote(
       id: DateTime.now().millisecondsSinceEpoch,
-      folio: '#${widget.state.nextFolioNum.toString().padLeft(4, '0')}',
+      folio: 'COT-${widget.state.nextFolioNum.toString().padLeft(4, '0')}',
       clientId: _clientId!,
       date: AppState.today(),
       status: QuoteStatus.pendiente,
@@ -528,7 +528,7 @@ class _NewQuoteScreenState extends State<NewQuoteScreen> {
         leading: AvatarWidget(name: client.name, size: 40),
         title: client.name,
         subtitle: [
-          client.phone,
+          PhoneInput.display(client.phone),
           if (client.address.isNotEmpty) client.address,
         ].join(' · '),
         trailing: Text(

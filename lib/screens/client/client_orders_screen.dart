@@ -7,7 +7,6 @@ import '../../core/app_routes.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/status_badge.dart';
-import '../../widgets/notices_button.dart';
 import '../../widgets/server_refresh.dart';
 import '../../widgets/request_widgets.dart';
 import '../../widgets/top_bar.dart';
@@ -43,7 +42,7 @@ class ClientOrdersScreen extends StatelessWidget {
       appBar: TopBar(
         title: 'Mis pedidos',
         showLogo: true,
-        actions: [NoticesButton(state: state)],
+
         onAvatarTap: () => onNavigate(ClientScreen.perfil),
       ),
       // Deslizar hacia abajo trae los cambios del taller (estado, abonos).
@@ -82,7 +81,7 @@ class ClientOrdersScreen extends StatelessWidget {
                         for (final r in requests)
                           BoxRow(
                             title: r.type,
-                            subtitle: '${r.date} · ${r.description}',
+                            subtitle: '${AppState.displayDate(r.date)} · ${r.description}',
                             trailing: RequestStatusBadge(r, forClient: true),
                             onTap: () => showClientRequest(context, r),
                           ),
@@ -137,7 +136,7 @@ class ClientOrdersScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${q.date} · ${AppState.plural(q.items.length, 'pieza', 'piezas')}',
+            '${AppState.displayDate(q.date)} · ${AppState.plural(q.items.length, 'pieza', 'piezas')}',
             style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
           Divider(height: 20, color: AppColors.divider),

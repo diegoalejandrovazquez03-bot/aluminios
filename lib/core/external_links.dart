@@ -27,6 +27,15 @@ class ExternalLinks {
     );
   }
 
+  /// Abre la dirección en el mapa del teléfono.
+  static Future<void> maps(BuildContext context, String address) => _open(
+    context,
+    Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}',
+    ),
+    'No se pudo abrir el mapa.',
+  );
+
   static Future<void> _open(BuildContext context, Uri url, String error) async {
     final messenger = ScaffoldMessenger.of(context);
     var opened = false;

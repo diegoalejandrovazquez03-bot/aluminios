@@ -9,6 +9,7 @@ import '../../widgets/app_image.dart';
 import '../../widgets/image_viewer.dart';
 import '../../widgets/payment_sheet.dart';
 import '../../widgets/pdf_preview_screen.dart';
+import '../../widgets/order_progress.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/ui.dart';
 
@@ -63,7 +64,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Fecha de solicitud: ${quote.date}',
+                        'Fecha de solicitud: ${AppState.displayDate(quote.date)}',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
@@ -80,6 +81,11 @@ class ClientOrderDetailScreen extends StatelessWidget {
           const SizedBox(height: 16),
           if (quote.status == QuoteStatus.pendiente) ...[
             _responseCard(context, quote),
+            const SizedBox(height: 16),
+          ],
+          if (OrderProgress.stepOf(quote.status) != null) ...[
+            const SectionHeader('Avance de tu pedido'),
+            AppCard(child: OrderProgress(quote: quote)),
             const SizedBox(height: 16),
           ],
 
@@ -119,7 +125,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
                 for (final p in quotePayments)
                   // Tocar un abono abre su recibo.
                   BoxRow(
-                    title: p.date,
+                    title: AppState.displayDate(p.date),
                     subtitle: p.method,
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,

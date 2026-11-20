@@ -459,7 +459,7 @@ class ProfileScreen extends StatelessWidget {
     final email = state.session?.email ?? '';
 
     return Scaffold(
-      appBar: TopBar(title: 'Mi perfil'),
+      appBar: const TopBar(title: 'Mi perfil', showAvatar: false),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [

@@ -1,3 +1,5 @@
+import '../core/input_rules.dart';
+
 enum QuoteStatus {
   pendiente('Pendiente'),
   aprobada('Aprobada'),
@@ -123,7 +125,7 @@ class Client {
   factory Client.fromMap(Map<String, dynamic> map) {
     return Client(
       id: map['id'] is int ? map['id'] : int.parse(map['id'].toString()),
-      name: map['name'] ?? '',
+      name: displayName('${map['name'] ?? ''}'),
       phone: map['phone'] ?? '',
       address: map['address'] ?? '',
     );
@@ -242,6 +244,10 @@ class Quote {
   /// (data:image/...;base64). El cliente las ve en el detalle de su pedido.
   final List<String> photos;
 
+  /// Fecha estimada de entrega (aaaa-mm-dd) que pone el taller; vacía si
+  /// aún no se ha definido.
+  final String deliveryDate;
+
   Quote({
     required this.id,
     required this.folio,
@@ -251,6 +257,7 @@ class Quote {
     required this.items,
     this.discount = 0.0,
     this.photos = const [],
+    this.deliveryDate = '',
   });
 
   double get subtotal => items.fold(0.0, (acc, it) => acc + it.subtotal);
@@ -266,6 +273,7 @@ class Quote {
     List<QuoteItem>? items,
     double? discount,
     List<String>? photos,
+    String? deliveryDate,
   }) {
     return Quote(
       id: id ?? this.id,
@@ -276,6 +284,7 @@ class Quote {
       items: items ?? this.items,
       discount: discount ?? this.discount,
       photos: photos ?? this.photos,
+      deliveryDate: deliveryDate ?? this.deliveryDate,
     );
   }
 
@@ -289,13 +298,27 @@ class Quote {
       'items': items.map((x) => x.toMap()).toList(),
       'discount': discount,
       'photos': photos,
+      'deliveryDate': deliveryDate,
     };
+  }
+
+  /// Un solo formato de folio: "#0011" se muestra como "COT-0011".
+  static String normalizeFolio(String folio) {
+    final old = RegExp(r'^#(\d{1,6})$').firstMatch(folio.trim());
+    return old == null ? folio : 'COT-${old.group(1)}';
+  }
+
+  /// Número consecutivo del folio, o null si no es de la forma COT-0001
+  /// (los folios viejos con fecha y hora no cuentan para el consecutivo).
+  static int? folioNumber(String folio) {
+    final m = RegExp(r'^(?:COT-|#)(\d{1,6})$').firstMatch(folio.trim());
+    return m == null ? null : int.parse(m.group(1)!);
   }
 
   factory Quote.fromMap(Map<String, dynamic> map) {
     return Quote(
       id: map['id'] is int ? map['id'] : int.parse(map['id'].toString()),
-      folio: map['folio'] ?? '',
+      folio: Quote.normalizeFolio('${map['folio'] ?? ''}'),
       clientId: map['clientId'] is int
           ? map['clientId']
           : int.parse(map['clientId'].toString()),
@@ -310,6 +333,7 @@ class Quote {
       photos:
           (map['photos'] as List<dynamic>?)?.whereType<String>().toList() ??
           const [],
+      deliveryDate: '${map['deliveryDate'] ?? ''}',
     );
   }
 }

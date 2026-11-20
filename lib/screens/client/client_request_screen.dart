@@ -264,7 +264,7 @@ void showClientRequest(BuildContext context, QuoteRequest r) {
             ),
             const SizedBox(height: 2),
             Text(
-              'Enviada el ${r.date}',
+              'Enviada el ${AppState.displayDate(r.date)}',
               style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
             if (r.status == QuoteRequest.rejected) ...[

@@ -102,7 +102,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         background: AppColors.completedBg,
       ),
       title: '${q?.folio ?? 'Cotización'} · ${c?.name ?? 'Cliente'}',
-      subtitle: '${p.date} · ${p.method}',
+      subtitle: '${AppState.displayDate(p.date)} · ${p.method}',
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

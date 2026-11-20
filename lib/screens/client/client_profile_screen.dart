@@ -55,7 +55,7 @@ class ClientProfileScreen extends StatelessWidget {
         .length;
 
     return Scaffold(
-      appBar: const TopBar(title: 'Mi perfil'),
+      appBar: const TopBar(title: 'Mi perfil', showAvatar: false),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
         children: [

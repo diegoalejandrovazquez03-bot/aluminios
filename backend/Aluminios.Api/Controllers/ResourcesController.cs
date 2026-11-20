@@ -18,6 +18,18 @@ public sealed class ResourcesController(Store store, Push push) : ControllerBase
 
     private ObjectResult Forbidden() => StatusCode(403, new { error = "No tienes permiso para esta acción." });
 
+    // El taller está en México: la fecha de una solicitud o cotización es la
+    // del día allá, no la de UTC (que de noche ya va en el día siguiente).
+    private static readonly TimeZoneInfo Mexico = FindMexico();
+
+    private static TimeZoneInfo FindMexico()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City"); }
+        catch (Exception) { return TimeZoneInfo.CreateCustomTimeZone("Mexico", TimeSpan.FromHours(-6), "Mexico", "Mexico"); }
+    }
+
+    private static DateTime MexicoNow() => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Mexico);
+
     private static long ClientIdOf(JsonElement item) =>
         item.TryGetProperty("clientId", out var c) && c.ValueKind == JsonValueKind.Number && c.TryGetInt64(out var id) ? id : -1;
 
@@ -107,7 +119,7 @@ public sealed class ResourcesController(Store store, Push push) : ControllerBase
         {
             if (ApplyQuoteTotals(data) is { } error) return BadRequest(new { error });
             data.TryAdd("status", JsonSerializer.SerializeToElement("Pendiente"));
-            data.TryAdd("date", JsonSerializer.SerializeToElement(DateTime.UtcNow.ToString("O")));
+            data.TryAdd("date", JsonSerializer.SerializeToElement(MexicoNow().ToString("dd/MM/yyyy")));
             data.TryAdd("folio", JsonSerializer.SerializeToElement($"COT-{DateTime.UtcNow:yyyyMMddHHmmss}"));
         }
         if (resource == "solicitudes")
@@ -115,7 +127,7 @@ public sealed class ResourcesController(Store store, Push push) : ControllerBase
             if (!data.TryGetValue("description", out var description) || description.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(description.GetString()))
                 return BadRequest(new { error = "Describe lo que necesitas." });
             data.TryAdd("status", JsonSerializer.SerializeToElement("Enviada"));
-            data.TryAdd("date", JsonSerializer.SerializeToElement(DateTime.UtcNow.ToString("yyyy-MM-dd")));
+            data.TryAdd("date", JsonSerializer.SerializeToElement(MexicoNow().ToString("yyyy-MM-dd")));
         }
         if (resource == "pedidos")
         {

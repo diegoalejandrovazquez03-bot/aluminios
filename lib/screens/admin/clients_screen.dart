@@ -67,7 +67,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 ],
               ),
               Text(
-                client.phone,
+                PhoneInput.display(client.phone),
                 style: AppText.mono(fontSize: 14, color: AppColors.textMuted),
               ),
               if (client.address.isNotEmpty)
@@ -86,7 +86,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       leading: const IconBadge(Icons.receipt_long),
                       title: quote.folio,
                       monoTitle: true,
-                      subtitle: '${quote.date} · ${quote.status.label}',
+                      subtitle: '${AppState.displayDate(quote.date)} · ${quote.status.label}',
                       trailing: MoneyText(AppState.formatMXN(quote.total)),
                       onTap: () {
                         Navigator.pop(ctx);
@@ -307,7 +307,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                           leading: AvatarWidget(name: c.name, size: 42),
                           title: c.name,
                           subtitle:
-                              '${c.phone}\n${AppState.plural(orders, 'pedido', 'pedidos')}',
+                              '${PhoneInput.display(c.phone)}\n${AppState.plural(orders, 'pedido', 'pedidos')}',
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

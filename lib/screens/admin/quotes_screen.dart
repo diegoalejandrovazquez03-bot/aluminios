@@ -177,19 +177,23 @@ class _QuotesScreenState extends State<QuotesScreen> {
           .where((q) => q.status == QuoteStatus.pendiente)
           .toList();
     }
-    if (_filter == 'Cancelada') {
+    // "Terminada" junta las que ya se fabricaron o entregaron.
+    if (_filter == 'Terminada') {
       return widget.state.quotes
-          .where((q) => q.status == QuoteStatus.cancelada)
+          .where(
+            (q) =>
+                q.status == QuoteStatus.completado ||
+                q.status == QuoteStatus.entregado,
+          )
           .toList();
     }
-    // 'Aprobada' encompasses Aprobada, En proceso, Completado, Entregado
-    return widget.state.quotes
-        .where(
-          (q) =>
-              q.status != QuoteStatus.pendiente &&
-              q.status != QuoteStatus.cancelada,
-        )
-        .toList();
+    final status = QuoteStatus.values
+        .where((s) => s.label == _filter)
+        .firstOrNull;
+    if (status != null) {
+      return widget.state.quotes.where((q) => q.status == status).toList();
+    }
+    return List.of(widget.state.quotes);
   }
 
   @override
@@ -202,10 +206,11 @@ class _QuotesScreenState extends State<QuotesScreen> {
         showLogo: true,
         onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
         actions: [
-          IconButton(
-            tooltip: 'Papelera',
+          TextButton.icon(
             onPressed: _showTrash,
-            icon: const Icon(Icons.delete_outline),
+            icon: const Icon(Icons.delete_outline, size: 18),
+            label: const Text('Papelera'),
+            style: TextButton.styleFrom(foregroundColor: AppColors.navy),
           ),
         ],
       ),
@@ -235,7 +240,14 @@ class _QuotesScreenState extends State<QuotesScreen> {
           ),
 
           FilterBar(
-            options: const ['Todas', 'Pendiente', 'Aprobada', 'Cancelada'],
+            options: const [
+              'Todas',
+              'Pendiente',
+              'Aprobada',
+              'En proceso',
+              'Terminada',
+              'Cancelada',
+            ],
             selected: _filter,
             onSelected: (f) {
               setState(() => _filter = f);
@@ -351,7 +363,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${q.date} · ${AppState.plural(q.items.length, 'pieza', 'piezas')}',
+                      '${widget.state.itemsSummary(q)} · ${AppState.displayDate(q.date)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

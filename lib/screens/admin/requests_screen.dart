@@ -4,9 +4,9 @@ import '../../core/app_routes.dart';
 import '../../core/constants.dart';
 import '../../core/external_links.dart';
 import '../../core/theme.dart';
+import '../../core/input_rules.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
-import '../../widgets/notices_button.dart';
 import '../../widgets/request_widgets.dart';
 import '../../widgets/server_refresh.dart';
 import '../../widgets/top_bar.dart';
@@ -49,7 +49,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
         title: 'Solicitudes',
         showLogo: true,
         onAvatarTap: () => widget.onNavigate(AdminScreen.perfil),
-        actions: [NoticesButton(state: state, onNavigate: widget.onNavigate)],
+
       ),
       body: Column(
         children: [
@@ -132,7 +132,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
           ),
           const SizedBox(height: 2),
           Text(
-            '${r.type} · ${r.date}',
+            '${r.type} · ${AppState.displayDate(r.date)}',
             style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
           const SizedBox(height: 8),
@@ -205,7 +205,7 @@ void showAdminRequest(
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${r.type} · ${r.date}',
+                  '${r.type} · ${AppState.displayDate(r.date)}',
                   style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 if (client != null && client.phone.isNotEmpty) ...[
@@ -213,7 +213,7 @@ void showAdminRequest(
                   Row(
                     children: [
                       Text(
-                        client.phone,
+                        PhoneInput.display(client.phone),
                         style: AppText.mono(
                           fontSize: 13,
                           color: AppColors.textMuted,

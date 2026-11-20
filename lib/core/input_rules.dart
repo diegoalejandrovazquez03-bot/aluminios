@@ -93,6 +93,29 @@ class PhoneInput {
     }
     return null;
   }
+
+  /// Para mostrar: "6141234567" → "614 123 4567". Si no son 10 dígitos se
+  /// deja como está.
+  static String display(String phone) {
+    final d = phone.replaceAll(RegExp(r'\D'), '');
+    if (d.length != length) return phone;
+    return '${d.substring(0, 3)} ${d.substring(3, 6)} ${d.substring(6)}';
+  }
+}
+
+/// Nombres de persona con mayúscula inicial: "juan pérez" → "Juan Pérez".
+/// Solo cambia la primera letra de cada palabra (el resto se respeta) y las
+/// palabras de enlace ("de", "la", "del") quedan como se escribieron.
+String displayName(String name) {
+  const linking = {'de', 'del', 'la', 'las', 'los', 'y'};
+  final words = name.trim().split(RegExp(r'\s+'));
+  return [
+    for (int i = 0; i < words.length; i++)
+      if (words[i].isEmpty || (i > 0 && linking.contains(words[i])))
+        words[i]
+      else
+        words[i][0].toUpperCase() + words[i].substring(1),
+  ].join(' ');
 }
 
 class AccountInput {

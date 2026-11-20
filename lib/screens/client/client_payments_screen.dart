@@ -80,7 +80,7 @@ class ClientPaymentsScreen extends StatelessWidget {
                       background: AppColors.completedBg,
                     ),
                     title: 'Pedido ${quotes[p.quoteId]!.folio}',
-                    subtitle: '${p.date} · ${p.method}',
+                    subtitle: '${AppState.displayDate(p.date)} · ${p.method}',
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

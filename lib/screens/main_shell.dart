@@ -9,6 +9,7 @@ import '../core/app_routes.dart';
 import '../core/push_service.dart';
 import '../state/app_state.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/notices_button.dart';
 import 'admin/agenda_screen.dart';
 import 'admin/catalog_screen.dart';
 import 'admin/clients_screen.dart';
@@ -184,9 +185,20 @@ class _MainShellState extends State<MainShell> {
     AppNavigation.canGoBack = _history.length > 1;
     AppNavigation.onBack = _goBack;
     AppNavigation.openMenu = () => _scaffoldKey.currentState?.openDrawer();
+    AppNavigation.isRoot = (isAdmin ? _adminTabs : _clientTabs).contains(
+      _currentScreenIndex,
+    );
+    AppNavigation.openProfile = () =>
+        _navigateTo(isAdmin ? AdminScreen.perfil : ClientScreen.perfil);
+    AppNavigation.noticesButton = () => NoticesButton(
+      state: state,
+      onNavigate: isAdmin ? _navigateTo : null,
+    );
     // Avatar de la barra superior: foto o iniciales de quien tiene la sesión.
     CurrentUser.name = isAdmin
-        ? state.settings.bizName
+        ? (state.settings.ownerName.trim().isNotEmpty
+              ? state.settings.ownerName.trim()
+              : state.settings.bizName)
         : (state.currentClient?.name ?? 'Cliente');
     CurrentUser.photoUrl = isAdmin
         ? state.settings.avatarUrl

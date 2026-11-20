@@ -10,6 +10,7 @@ import '../../core/quote_pdf_service.dart';
 import '../../core/constants.dart';
 import '../../core/photo_picker.dart';
 import '../../core/app_routes.dart';
+import '../../core/input_rules.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../widgets/app_image.dart';
@@ -18,6 +19,7 @@ import '../../widgets/image_viewer.dart';
 import '../../widgets/payment_sheet.dart';
 import '../../widgets/pdf_preview_screen.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/order_progress.dart';
 import '../../widgets/top_bar.dart';
 import '../../widgets/ui.dart';
 import '../../widgets/whatsapp_draft_sheet.dart';
@@ -159,7 +161,7 @@ class QuoteDetailScreen extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'Fecha: ${quote.date} · Vigencia: ${state.settings.quoteValidityDays} días',
+                        'Fecha: ${AppState.displayDate(quote.date)} · Vigencia: ${state.settings.quoteValidityDays} días',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
@@ -256,6 +258,22 @@ class QuoteDetailScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _pickDeliveryDate(BuildContext context, Quote quote) async {
+    final now = DateTime.now();
+    final current = DateTime.tryParse(quote.deliveryDate);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? now.add(const Duration(days: 7)),
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 2),
+      helpText: 'Fecha estimada de entrega',
+    );
+    if (picked == null) return;
+    final iso =
+        '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    state.updateQuote(quote.copyWith(deliveryDate: iso));
+  }
+
   @override
   Widget build(BuildContext context) {
     final quote = state.selectedQuote;
@@ -303,7 +321,7 @@ class QuoteDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Fecha: ${quote.date}',
+                        'Fecha: ${AppState.displayDate(quote.date)}',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
@@ -331,6 +349,17 @@ class QuoteDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
+          // Avance del pedido (desde que se aprueba) y fecha de entrega.
+          if (OrderProgress.stepOf(quote.status) != null) ...[
+            AppCard(
+              child: OrderProgress(
+                quote: quote,
+                onEditDate: () => _pickDeliveryDate(context, quote),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
           // Contacto del cliente
           if (client != null) ...[
             AppCard(
@@ -354,7 +383,7 @@ class QuoteDetailScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          client.phone,
+                          PhoneInput.display(client.phone),
                           style: TextStyle(
                             color: AppColors.textMuted,
                             fontSize: 12,
@@ -601,7 +630,7 @@ class QuoteDetailScreen extends StatelessWidget {
                   ),
                   title: AppState.formatMXN(p.amount),
                   monoTitle: true,
-                  subtitle: '${p.date} · ${p.method}',
+                  subtitle: '${AppState.displayDate(p.date)} · ${p.method}',
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

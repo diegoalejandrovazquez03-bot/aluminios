@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import '../../core/constants.dart';
 import '../../core/app_routes.dart';
 import '../../core/external_links.dart';
+import '../../core/input_rules.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
-import '../../widgets/notices_button.dart';
 import 'client_request_screen.dart';
+import '../../widgets/app_image.dart';
+import '../../widgets/image_viewer.dart';
+import '../../widgets/order_progress.dart';
 import '../../widgets/server_refresh.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/top_bar.dart';
@@ -24,25 +27,6 @@ class ClientHomeScreen extends StatelessWidget {
     required this.state,
     required this.onNavigate,
   });
-
-  static const _steps = ['Aprobado', 'Fabricación', 'Entrega'];
-
-  /// Paso actual del pedido según su estado (-1 = aún sin aprobar).
-  static int _stepOf(QuoteStatus s) {
-    switch (s) {
-      case QuoteStatus.aprobada:
-        return 0;
-      case QuoteStatus.enProceso:
-        return 1;
-      case QuoteStatus.completado:
-        return 2;
-      case QuoteStatus.entregado:
-        return 3;
-      case QuoteStatus.pendiente:
-      case QuoteStatus.cancelada:
-        return -1;
-    }
-  }
 
   String _orderTitle(Quote q) {
     if (q.items.isEmpty) return 'Pedido ${q.folio}';
@@ -89,7 +73,7 @@ class ClientHomeScreen extends StatelessWidget {
       appBar: TopBar(
         title: 'ALUMINIOS',
         showLogo: true,
-        actions: [NoticesButton(state: state)],
+
         onAvatarTap: () =>
             onNavigate(ClientScreen.perfil), // Perfil del cliente
       ),
@@ -142,32 +126,25 @@ class ClientHomeScreen extends StatelessWidget {
               ),
             const SizedBox(height: 12),
 
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                    label: const Text('Escribir al taller'),
-                    onPressed: () => ExternalLinks.whatsApp(
-                      context,
-                      state.settings.bizPhone,
-                    ),
-                  ),
+            // La acción principal del cliente, grande y a la vista.
+            SizedBox(
+              height: 52,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.request_quote_outlined),
+                label: const Text(
+                  'Pedir cotización',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => openRequestForm(
-                      context,
-                      state,
-                      onOpenCatalog: () => onNavigate(ClientScreen.catalogo),
-                    ),
-                    child: const Text('Pedir cotización'),
-                  ),
+                onPressed: () => openRequestForm(
+                  context,
+                  state,
+                  onOpenCatalog: () => onNavigate(ClientScreen.catalogo),
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 24),
+
+            ..._worksSection(context),
 
             ..._visitsSection(),
 
@@ -183,9 +160,120 @@ class ClientHomeScreen extends StatelessWidget {
                 for (final q in others) _orderRow(context, q),
               ],
             ),
+            const SizedBox(height: 24),
+
+            _workshopCard(context),
           ],
         ),
       ),
+    );
+  }
+
+  /// "Nuestros trabajos": fotos de trabajos terminados del taller, en una
+  /// tira que se desliza de lado. Tocar una la abre en grande.
+  List<Widget> _worksSection(BuildContext context) {
+    final works = state.works
+        .where((w) => !w.custom && w.clientId == null && w.img.isNotEmpty)
+        .take(8)
+        .toList();
+    if (works.isEmpty) return const [];
+    return [
+      const SectionHeader('Nuestros trabajos'),
+      SizedBox(
+        height: 150,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: works.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 10),
+          itemBuilder: (context, i) {
+            final w = works[i];
+            return GestureDetector(
+              onTap: () => showImageViewer(
+                context,
+                images: [w.img, ...w.photos],
+                title: w.title,
+              ),
+              child: SizedBox(
+                width: 140,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(kRadius),
+                      child: AppImage(w.img, width: 140, height: 110),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      w.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: AppColors.navy),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      const SizedBox(height: 24),
+    ];
+  }
+
+  /// Datos del taller: horario, dirección (abre el mapa) y WhatsApp.
+  Widget _workshopCard(BuildContext context) {
+    final s = state.settings;
+    Widget row(IconData icon, String text, {VoidCallback? onTap}) => InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: AppColors.textMuted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(fontSize: 13, color: AppColors.navy),
+              ),
+            ),
+            if (onTap != null)
+              Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
+          ],
+        ),
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(s.bizName.isEmpty ? 'El taller' : s.bizName),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (s.bizHours.isNotEmpty) row(Icons.schedule, s.bizHours),
+              if (s.bizAddress.isNotEmpty)
+                row(
+                  Icons.place_outlined,
+                  s.bizAddress,
+                  onTap: () => ExternalLinks.maps(context, s.bizAddress),
+                ),
+              if (s.bizPhone.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  icon: Icon(
+                    Icons.chat_bubble_outline,
+                    size: 18,
+                    color: AppColors.done,
+                  ),
+                  label: Text('WhatsApp ${PhoneInput.display(s.bizPhone)}'),
+                  onPressed: () => ExternalLinks.whatsApp(context, s.bizPhone),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -243,7 +331,6 @@ class ClientHomeScreen extends StatelessWidget {
     final paid = state.paidOf(q.id);
     final rem = (q.total - paid).clamp(0, double.infinity);
     final progress = q.total > 0 ? (paid / q.total).clamp(0.0, 1.0) : 0.0;
-    final step = _stepOf(q.status);
     final fg = AppColors.navy;
 
     return AppCard(
@@ -277,7 +364,7 @@ class ClientHomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${q.folio} · ${q.date}',
+                      '${q.folio} · ${AppState.displayDate(q.date)}',
                       style: AppText.mono(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
@@ -291,46 +378,9 @@ class ClientHomeScreen extends StatelessWidget {
               StatusBadge(status: q.status),
             ],
           ),
-          if (step >= 0) ...[
+          if (OrderProgress.stepOf(q.status) != null) ...[
             const SizedBox(height: 16),
-            Row(
-              children: [
-                for (int i = 0; i < _steps.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: i < step
-                                ? fg
-                                : i == step
-                                ? AppColors.blue
-                                : AppColors.divider,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _steps[i],
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: i == step
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            color: i == step
-                                ? AppColors.blue
-                                : AppColors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
+            OrderProgress(quote: q),
           ],
           const SizedBox(height: 14),
           Divider(height: 1, thickness: 1, color: AppColors.divider),

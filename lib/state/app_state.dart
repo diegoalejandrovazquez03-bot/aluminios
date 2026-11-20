@@ -431,8 +431,7 @@ class AppState extends ChangeNotifier {
   int get nextFolioNum {
     int max = 0;
     for (final q in _quotes) {
-      final clean = q.folio.replaceAll(RegExp(r'\D'), '');
-      final num = int.tryParse(clean) ?? 0;
+      final num = Quote.folioNumber(q.folio) ?? 0;
       if (num > max) max = num;
     }
     return max + 1;
@@ -466,6 +465,45 @@ class AppState extends ChangeNotifier {
         ? '${formatMXN(item.unitPrice)} c/u'
         : '${formatArea(item.area)} × ${formatMXN(item.pricePerM2!)}';
     return '$size · $price';
+  }
+
+  /// Qué lleva una cotización, en corto: "Ventana corrediza × 2, Puerta".
+  String itemsSummary(Quote q) {
+    if (q.items.isEmpty) return 'Sin piezas';
+    final counts = <String, int>{};
+    for (final item in q.items) {
+      final name =
+          _products.where((p) => p.id == item.productId).firstOrNull?.name ??
+          'Pieza';
+      counts[name] = (counts[name] ?? 0) + item.qty;
+    }
+    final parts = [
+      for (final e in counts.entries)
+        e.value > 1 ? '${e.key} × ${e.value}' : e.key,
+    ];
+    if (parts.length <= 2) return parts.join(', ');
+    return '${parts.take(2).join(', ')} y ${parts.length - 2} más';
+  }
+
+  /// Cualquier fecha guardada (dd/mm/aaaa o ISO) mostrada como dd/mm/aaaa.
+  static String displayDate(String date) {
+    final d = _parseDate(date);
+    if (d == null) return date;
+    final local = d.isUtc ? d.toLocal() : d;
+    return '${local.day.toString().padLeft(2, '0')}/'
+        '${local.month.toString().padLeft(2, '0')}/${local.year}';
+  }
+
+  static DateTime? _parseDate(String date) {
+    final dmy = RegExp(r'^(\d{1,2})/(\d{1,2})/(\d{4})$').firstMatch(date.trim());
+    if (dmy != null) {
+      return DateTime(
+        int.parse(dmy.group(3)!),
+        int.parse(dmy.group(2)!),
+        int.parse(dmy.group(1)!),
+      );
+    }
+    return DateTime.tryParse(date.trim());
   }
 
   static String today() {
@@ -559,7 +597,7 @@ class AppState extends ChangeNotifier {
     _quotes = [
       Quote(
         id: 12,
-        folio: '#0012',
+        folio: 'COT-0012',
         clientId: 1,
         date: '13/09/2026',
         status: QuoteStatus.pendiente,
@@ -576,7 +614,7 @@ class AppState extends ChangeNotifier {
       ),
       Quote(
         id: 11,
-        folio: '#0011',
+        folio: 'COT-0011',
         clientId: 2,
         date: '12/09/2026',
         status: QuoteStatus.aprobada,
@@ -600,7 +638,7 @@ class AppState extends ChangeNotifier {
       ),
       Quote(
         id: 10,
-        folio: '#0010',
+        folio: 'COT-0010',
         clientId: 3,
         date: '10/09/2026',
         status: QuoteStatus.pendiente,
@@ -624,7 +662,7 @@ class AppState extends ChangeNotifier {
       ),
       Quote(
         id: 9,
-        folio: '#0009',
+        folio: 'COT-0009',
         clientId: 4,
         date: '08/09/2026',
         status: QuoteStatus.cancelada,
@@ -641,7 +679,7 @@ class AppState extends ChangeNotifier {
       ),
       Quote(
         id: 8,
-        folio: '#0008',
+        folio: 'COT-0008',
         clientId: 1,
         date: '13/09/2026',
         status: QuoteStatus.enProceso,
@@ -658,7 +696,7 @@ class AppState extends ChangeNotifier {
       ),
       Quote(
         id: 7,
-        folio: '#0007',
+        folio: 'COT-0007',
         clientId: 2,
         date: '05/09/2026',
         status: QuoteStatus.completado,
@@ -675,7 +713,7 @@ class AppState extends ChangeNotifier {
       ),
       Quote(
         id: 6,
-        folio: '#0006',
+        folio: 'COT-0006',
         clientId: 3,
         date: '02/09/2026',
         status: QuoteStatus.entregado,
